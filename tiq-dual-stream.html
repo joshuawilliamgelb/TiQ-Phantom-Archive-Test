@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Theater in Quarantine — Dual Stream</title>
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Inconsolata:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --black: #080808;
+    --offwhite: #e8e2d9;
+    --dim: #5a5550;
+    --accent: #c8a97e;
+    --pip-size: 22%;
+    --pip-gap: 18px;
+    --transition: 0.45s cubic-bezier(0.77, 0, 0.175, 1);
+  }
+
+  body {
+    background: var(--black);
+    color: var(--offwhite);
+    font-family: 'Inconsolata', monospace;
+    font-weight: 300;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 16px;
+    overflow-x: hidden;
+  }
+
+  /* Subtle grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0.35;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 28px;
+    letter-spacing: 0.18em;
+  }
+
+  .title {
+    font-family: 'IM Fell English', serif;
+    font-size: clamp(1.1rem, 2.5vw, 1.6rem);
+    color: var(--offwhite);
+    font-style: italic;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    font-size: 0.65rem;
+    color: var(--dim);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+  }
+
+  /* Stage */
+  .stage {
+    position: relative;
+    width: 100%;
+    max-width: 900px;
+    aspect-ratio: 16/9;
+    background: #000;
+    border: 1px solid #1e1e1e;
+    overflow: hidden;
+    cursor: default;
+  }
+
+  /* Both iframes sit in the same space */
+  .player {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    transition: opacity var(--transition);
+  }
+
+  .player.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* PiP container */
+  .pip {
+    position: absolute;
+    bottom: var(--pip-gap);
+    left: var(--pip-gap);
+    width: var(--pip-size);
+    aspect-ratio: 16/9;
+    cursor: pointer;
+    z-index: 10;
+    border: 1px solid rgba(200, 169, 126, 0.35);
+    transition: border-color 0.25s, transform 0.25s;
+    overflow: hidden;
+    background: #000;
+  }
+
+  .pip:hover {
+    border-color: var(--accent);
+    transform: scale(1.03);
+  }
+
+  .pip iframe {
+    position: absolute;
+    /* Scale up to fill PiP despite YouTube's minimum size constraints */
+    top: -12.5%;
+    left: -12.5%;
+    width: 125%;
+    height: 125%;
+    border: none;
+    pointer-events: none; /* clicks go to the container */
+  }
+
+  /* PiP label */
+  .pip-label {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 5px 7px;
+    font-size: 0.55rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: linear-gradient(transparent, rgba(0,0,0,0.75));
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .pip:hover .pip-label {
+    opacity: 1;
+  }
+
+  /* View indicator */
+  .view-indicator {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    font-size: 0.58rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: rgba(0,0,0,0.6);
+    padding: 4px 8px;
+    border: 1px solid rgba(200,169,126,0.2);
+    pointer-events: none;
+    z-index: 10;
+    transition: opacity 0.3s;
+  }
+
+  /* Flash on toggle */
+  .flash {
+    position: absolute;
+    inset: 0;
+    background: white;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 20;
+    transition: opacity 0.08s;
+  }
+
+  .flash.active {
+    opacity: 0.06;
+  }
+
+  /* Controls */
+  footer {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    max-width: 900px;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .time-label {
+    font-size: 0.65rem;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    min-width: 80px;
+  }
+
+  /* Sync status */
+  .sync-status {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--dim);
+    text-align: center;
+  }
+
+  .sync-status span {
+    color: var(--accent);
+  }
+
+  /* Input fields for video IDs */
+  .config {
+    margin-top: 28px;
+    border-top: 1px solid #1a1a1a;
+    padding-top: 20px;
+    width: 100%;
+    max-width: 900px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .config-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .config-field label {
+    font-size: 0.58rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  .config-field input {
+    background: #111;
+    border: 1px solid #222;
+    color: var(--offwhite);
+    font-family: 'Inconsolata', monospace;
+    font-size: 0.8rem;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+
+  .config-field input:focus {
+    border-color: var(--accent);
+  }
+
+  .config-load {
+    grid-column: 1 / -1;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'Inconsolata', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    padding: 10px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  .config-load:hover {
+    background: var(--accent);
+    color: var(--black);
+  }
+
+  .instructions {
+    font-size: 0.6rem;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+    line-height: 1.8;
+    text-align: center;
+    margin-top: 8px;
+    grid-column: 1 / -1;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title">Theater in Quarantine</div>
+  <div class="subtitle">Dual Stream Archive &nbsp;·&nbsp; Toggle View</div>
+</header>
+
+<div class="stage" id="stage">
+  <iframe
+    id="player-main"
+    class="player"
+    src=""
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowfullscreen>
+  </iframe>
+
+  <iframe
+    id="player-alt"
+    class="player hidden"
+    src=""
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowfullscreen>
+  </iframe>
+
+  <div class="pip" id="pip" onclick="toggleView()" title="Switch view">
+    <iframe id="pip-frame" src="" tabindex="-1"></iframe>
+    <div class="pip-label" id="pip-label">Switch View</div>
+  </div>
+
+  <div class="view-indicator" id="view-indicator">Performance</div>
+  <div class="flash" id="flash"></div>
+</div>
+
+<footer>
+  <div class="sync-status" id="sync-status">
+    Load two YouTube video IDs below to begin &nbsp;·&nbsp; Both streams sync automatically
+  </div>
+</footer>
+
+<div class="config">
+  <div class="config-field">
+    <label>Main Feed — YouTube Video ID</label>
+    <input type="text" id="input-main" placeholder="e.g. dQw4w9WgXcQ" />
+  </div>
+  <div class="config-field">
+    <label>BTS Feed — YouTube Video ID</label>
+    <input type="text" id="input-alt" placeholder="e.g. dQw4w9WgXcQ" />
+  </div>
+  <button class="config-load" onclick="loadVideos()">Load & Sync Streams</button>
+  <div class="instructions">
+    Paste the 11-character YouTube video ID (the part after <em>?v=</em> in the URL).<br>
+    Click the PiP window in the lower-left to toggle between views. Both videos run simultaneously and stay in sync.
+  </div>
+</div>
+
+<script>
+  // --- State ---
+  let mainId = '';
+  let altId = '';
+  let showingMain = true;
+  let syncInterval = null;
+
+  const AUTOPLAY_PARAMS = '?enablejsapi=1&autoplay=1&mute=0&rel=0&modestbranding=1&controls=1&origin=' + location.origin;
+  const AUTOPLAY_MUTED = '?enablejsapi=1&autoplay=1&mute=1&rel=0&modestbranding=1&controls=0&origin=' + location.origin;
+
+  function ytSrc(id, muted) {
+    return 'https://www.youtube.com/embed/' + id + (muted ? AUTOPLAY_MUTED : AUTOPLAY_PARAMS);
+  }
+
+  function loadVideos() {
+    mainId = document.getElementById('input-main').value.trim();
+    altId  = document.getElementById('input-alt').value.trim();
+
+    if (!mainId || !altId) {
+      alert('Please enter both video IDs.');
+      return;
+    }
+
+    showingMain = true;
+
+    // Load main (unmuted, controls) and alt (muted, no controls — runs silently)
+    document.getElementById('player-main').src = ytSrc(mainId, false);
+    document.getElementById('player-alt').src  = ytSrc(altId, true);
+    document.getElementById('pip-frame').src   = ytSrc(altId, true);
+
+    document.getElementById('player-main').classList.remove('hidden');
+    document.getElementById('player-alt').classList.add('hidden');
+
+    updateIndicator();
+    document.getElementById('sync-status').innerHTML =
+      'Both streams running &nbsp;·&nbsp; <span>Performance</span> active &nbsp;·&nbsp; BTS in PiP';
+  }
+
+  function toggleView() {
+    if (!mainId || !altId) return;
+
+    // Flash frame
+    const flash = document.getElementById('flash');
+    flash.classList.add('active');
+    setTimeout(() => flash.classList.remove('active'), 120);
+
+    showingMain = !showingMain;
+
+    const main = document.getElementById('player-main');
+    const alt  = document.getElementById('player-alt');
+    const pip  = document.getElementById('pip-frame');
+
+    if (showingMain) {
+      // Restore main to unmuted, alt stays muted in PiP
+      main.src = ytSrc(mainId, false);
+      alt.src  = ytSrc(altId, true);
+      pip.src  = ytSrc(altId, true);
+
+      main.classList.remove('hidden');
+      alt.classList.add('hidden');
+    } else {
+      // BTS becomes primary (unmuted, controls), main goes muted to PiP
+      alt.src  = ytSrc(altId, false);
+      main.src = ytSrc(mainId, true);
+      pip.src  = ytSrc(mainId, true);
+
+      alt.classList.remove('hidden');
+      main.classList.add('hidden');
+    }
+
+    updateIndicator();
+
+    const statusLabel = showingMain ? '<span>Performance</span> active &nbsp;·&nbsp; BTS in PiP'
+                                    : 'BTS active &nbsp;·&nbsp; <span>Performance</span> in PiP';
+    document.getElementById('sync-status').innerHTML =
+      'Both streams running &nbsp;·&nbsp; ' + statusLabel;
+  }
+
+  function updateIndicator() {
+    const ind = document.getElementById('view-indicator');
+    const pipLabel = document.getElementById('pip-label');
+    if (showingMain) {
+      ind.textContent = 'Performance';
+      pipLabel.textContent = '↙ Behind the Scenes';
+    } else {
+      ind.textContent = 'Behind the Scenes';
+      pipLabel.textContent = '↙ Performance';
+    }
+  }
+</script>
+
+</body>
+</html>
