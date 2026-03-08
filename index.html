@@ -146,4 +146,117 @@
   window.addEventListener('resize', sizePip);
 
   function setPipSrc(videoId, startSeconds) {
-    const f
+    const frame = document.getElementById('pip-iframe');
+    frame.src = 'https://www.youtube.com/embed/' + videoId
+      + '?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1'
+      + '&start=' + Math.floor(startSeconds || 0)
+      + '&origin=' + location.origin;
+    setTimeout(sizePip, 400);
+  }
+
+  function onYouTubeIframeAPIReady() {
+    playerMain = new YT.Player('yt-main', {
+      videoId: MAIN_VIDEO_ID,
+      playerVars: { autoplay:1, controls:1, rel:0, modestbranding:1, enablejsapi:1, origin:location.origin },
+      events: { onReady: onPlayerReady, onStateChange: onMainStateChange }
+    });
+    playerAlt = new YT.Player('yt-alt', {
+      videoId: BTS_VIDEO_ID,
+      playerVars: { autoplay:1, controls:0, rel:0, modestbranding:1, enablejsapi:1, mute:1, origin:location.origin },
+      events: { onReady: onPlayerReady }
+    });
+    setPipSrc(BTS_VIDEO_ID, 0);
+  }
+
+  function onPlayerReady() {
+    playersReady++;
+    if (playersReady === 2) {
+      setTimeout(() => {
+        try { playerAlt.seekTo(playerMain.getCurrentTime(), true); } catch(e) {}
+        startSyncLoop();
+        document.getElementById('loading').classList.add('gone');
+        sizePip();
+      }, 800);
+    }
+  }
+
+  function onMainStateChange(e) {
+    if (!playerAlt) return;
+    if (e.data === YT.PlayerState.PLAYING) playerAlt.playVideo();
+    else if (e.data === YT.PlayerState.PAUSED) playerAlt.pauseVideo();
+  }
+
+  function startSyncLoop() {
+    setInterval(() => {
+      if (!playerMain || !playerAlt) return;
+      try {
+        const mainT = playerMain.getCurrentTime();
+        const altT  = playerAlt.getCurrentTime();
+        if (Math.abs(mainT - altT) > 1.2) playerAlt.seekTo(mainT, true);
+      } catch(e) {}
+    }, 5000);
+
+    setInterval(() => {
+      try {
+        const id = showingMain ? BTS_VIDEO_ID : MAIN_VIDEO_ID;
+        const p  = showingMain ? playerAlt : playerMain;
+        setPipSrc(id, p.getCurrentTime());
+      } catch(e) {}
+    }, 30000);
+  }
+
+  function toggle() {
+    if (!playerMain || !playerAlt) return;
+
+    const shutter = document.getElementById('shutter');
+    shutter.classList.add('fire');
+    setTimeout(() => shutter.classList.remove('fire'), 100);
+
+    showingMain = !showingMain;
+
+    try {
+      if (showingMain) {
+        const t = playerAlt.getCurrentTime();
+        playerMain.seekTo(t, true); playerMain.unMute(); playerAlt.mute();
+      } else {
+        const t = playerMain.getCurrentTime();
+        playerAlt.seekTo(t, true); playerAlt.unMute(); playerMain.mute();
+      }
+    } catch(e) {}
+
+    document.getElementById('wrap-main').classList.toggle('behind', !showingMain);
+    document.getElementById('wrap-alt').classList.toggle('behind', showingMain);
+
+    try {
+      const pipId = showingMain ? BTS_VIDEO_ID : MAIN_VIDEO_ID;
+      const pipP  = showingMain ? playerAlt : playerMain;
+      setPipSrc(pipId, pipP.getCurrentTime());
+    } catch(e) {}
+
+    const badge  = document.getElementById('badge');
+    const label  = document.getElementById('pip-label');
+    const footer = document.getElementById('footer-status');
+
+    if (showingMain) {
+      badge.textContent = 'Performance';
+      label.textContent = 'Behind the Scenes ↗';
+      footer.innerHTML  = 'Both streams running &nbsp;·&nbsp; <span>Performance</span> active &nbsp;·&nbsp; Click PiP to switch';
+    } else {
+      badge.textContent = 'Behind the Scenes';
+      label.textContent = 'Performance ↗';
+      footer.innerHTML  = 'Both streams running &nbsp;·&nbsp; <span>Behind the Scenes</span> active &nbsp;·&nbsp; Click PiP to switch';
+    }
+  }
+
+  function handleStageClick() {
+    if (!playerMain || !playerAlt) return;
+    try {
+      const active = showingMain ? playerMain : playerAlt;
+      const state  = active.getPlayerState();
+      if (state === YT.PlayerState.PLAYING) { playerMain.pauseVideo(); playerAlt.pauseVideo(); }
+      else { playerMain.playVideo(); playerAlt.playVideo(); }
+    } catch(e) {}
+  }
+</script>
+</body>
+</html>
