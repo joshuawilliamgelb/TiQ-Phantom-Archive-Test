@@ -7,203 +7,90 @@
 <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Inconsolata:wght@300;400&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   :root {
-    --black: #080808;
-    --offwhite: #e8e2d9;
-    --dim: #5a5550;
-    --accent: #c8a97e;
+    --black: #080808; --offwhite: #e8e2d9; --dim: #5a5550; --accent: #c8a97e;
     --transition: 0.35s cubic-bezier(0.77, 0, 0.175, 1);
   }
-
   body {
-    background: var(--black);
-    color: var(--offwhite);
-    font-family: 'Inconsolata', monospace;
-    font-weight: 300;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 32px 16px;
+    background: var(--black); color: var(--offwhite);
+    font-family: 'Inconsolata', monospace; font-weight: 300;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 32px 16px;
   }
-
   body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 100; opacity: 0.35;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 100;
-    opacity: 0.35;
   }
-
-  header {
-    text-align: center;
-    margin-bottom: 20px;
-    letter-spacing: 0.18em;
-  }
-
-  .title {
-    font-family: 'IM Fell English', serif;
-    font-size: clamp(1rem, 2.5vw, 1.5rem);
-    color: var(--offwhite);
-    font-style: italic;
-    margin-bottom: 4px;
-  }
-
-  .subtitle {
-    font-size: 0.6rem;
-    color: var(--dim);
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-  }
+  header { text-align: center; margin-bottom: 20px; letter-spacing: 0.18em; }
+  .title { font-family: 'IM Fell English', serif; font-size: clamp(1rem, 2.5vw, 1.5rem); color: var(--offwhite); font-style: italic; margin-bottom: 4px; }
+  .subtitle { font-size: 0.6rem; color: var(--dim); letter-spacing: 0.3em; text-transform: uppercase; }
 
   .stage {
-    position: relative;
-    width: 100%;
-    max-width: 900px;
-    aspect-ratio: 16/9;
-    background: #000;
-    border: 1px solid #1a1a1a;
-    overflow: hidden;
+    position: relative; width: 100%; max-width: 900px; aspect-ratio: 16/9;
+    background: #000; border: 1px solid #1a1a1a; overflow: hidden;
   }
-
   .player-wrap {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+    position: absolute; inset: 0; width: 100%; height: 100%;
     transition: opacity var(--transition);
   }
+  .player-wrap.behind { opacity: 0; pointer-events: none; }
+  .player-wrap > div, .player-wrap iframe { width: 100%; height: 100%; border: none; display: block; }
 
-  .player-wrap.behind {
-    opacity: 0;
-    pointer-events: none;
+  .yt-top-block {
+    position: absolute; top: 0; left: 0; right: 0; height: 85%;
+    z-index: 3; cursor: default;
   }
+  .stage:not(:hover) .yt-top-block { pointer-events: none; }
+  .stage:hover .yt-top-block { pointer-events: auto; }
 
-  .player-wrap iframe {
-    width: 100%;
-    height: 100%;
-    border: none;
-    display: block;
-  }
-
-  .pip {
-    position: absolute;
-    bottom: 16px;
-    left: 16px;
-    width: 22%;
-    aspect-ratio: 16/9;
-    cursor: pointer;
-    z-index: 20;
-    border: 1px solid rgba(200,169,126,0.3);
-    overflow: hidden;
-    background: #000;
+  .pip-container {
+    position: absolute; top: 14px; right: 14px;
+    width: 22%; aspect-ratio: 16/9;
+    z-index: 10; cursor: pointer;
+    border: 1px solid rgba(200,169,126,0.3); overflow: hidden; background: #000;
     transition: border-color 0.2s, transform 0.2s;
   }
-
-  .pip:hover {
-    border-color: var(--accent);
-    transform: scale(1.04);
-  }
-
-  .pip-inner {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-    pointer-events: none;
-  }
-
-  .pip-inner iframe {
-    position: absolute;
-    top: -12.5%;
-    left: -12.5%;
-    width: 125%;
-    height: 125%;
-    border: none;
-  }
-
+  .pip-container:hover { border-color: var(--accent); transform: scale(1.04); }
+  .pip-viewport { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .pip-clone { position: absolute; top: 0; left: 0; transform-origin: top left; }
+  .pip-clone iframe { border: none; display: block; pointer-events: none; }
   .pip-label {
-    position: absolute;
-    bottom: 0;
-    left: 0; right: 0;
-    padding: 4px 6px;
-    font-size: 0.5rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--accent);
-    background: linear-gradient(transparent, rgba(0,0,0,0.8));
-    text-align: center;
-    opacity: 0;
-    transition: opacity 0.2s;
-    pointer-events: none;
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 4px 6px; font-size: 0.5rem; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--accent); background: linear-gradient(transparent, rgba(0,0,0,0.85));
+    text-align: center; opacity: 0; transition: opacity 0.2s; pointer-events: none;
   }
-
-  .pip:hover .pip-label { opacity: 1; }
+  .pip-container:hover .pip-label { opacity: 1; }
 
   .badge {
-    position: absolute;
-    top: 12px;
-    right: 14px;
-    font-size: 0.55rem;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    color: var(--accent);
-    background: rgba(0,0,0,0.65);
-    padding: 3px 8px;
-    border: 1px solid rgba(200,169,126,0.2);
-    pointer-events: none;
-    z-index: 20;
+    position: absolute; top: 14px; left: 14px; font-size: 0.55rem;
+    letter-spacing: 0.25em; text-transform: uppercase; color: var(--accent);
+    background: rgba(0,0,0,0.65); padding: 3px 8px;
+    border: 1px solid rgba(200,169,126,0.2); pointer-events: none; z-index: 10;
   }
-
-  .shutter {
-    position: absolute;
-    inset: 0;
-    background: #fff;
-    opacity: 0;
-    pointer-events: none;
-    z-index: 30;
-    transition: opacity 0.06s;
-  }
+  .shutter { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 30; transition: opacity 0.06s; }
   .shutter.fire { opacity: 0.07; }
-
-  footer {
-    margin-top: 14px;
-    font-size: 0.58rem;
-    color: var(--dim);
-    letter-spacing: 0.15em;
-    text-align: center;
-    line-height: 1.9;
-  }
-
-  footer span { color: var(--accent); }
-
   .loading {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.65rem;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    color: var(--dim);
-    z-index: 5;
-    background: var(--black);
-    transition: opacity 0.5s;
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--dim); z-index: 5; background: var(--black); transition: opacity 0.5s;
   }
   .loading.gone { opacity: 0; pointer-events: none; }
+  footer { margin-top: 14px; font-size: 0.58rem; color: var(--dim); letter-spacing: 0.15em; text-align: center; line-height: 1.9; }
+  footer span { color: var(--accent); }
 </style>
 </head>
 <body>
 
+<!-- ═══════════════════════════════════════
+     SET YOUR VIDEO IDS HERE
+═══════════════════════════════════════ -->
 <script>
   const MAIN_VIDEO_ID = 'WM9m1bN3CAE';
   const BTS_VIDEO_ID  = 'UKkKbshKPhw';
   const SHOW_TITLE    = 'Phantom of the Opera';
 </script>
+<!-- ═══════════════════════════════════════ -->
 
 <header>
   <div class="title">Theater in Quarantine</div>
@@ -213,17 +100,16 @@
 <div class="stage" id="stage">
   <div class="loading" id="loading">Preparing streams…</div>
 
-  <div class="player-wrap" id="wrap-main">
-    <div id="yt-main"></div>
-  </div>
+  <div class="player-wrap" id="wrap-main"><div id="yt-main"></div></div>
+  <div class="player-wrap behind" id="wrap-alt"><div id="yt-alt"></div></div>
 
-  <div class="player-wrap behind" id="wrap-alt">
-    <div id="yt-alt"></div>
-  </div>
+  <div class="yt-top-block" id="top-block" onclick="handleStageClick()"></div>
 
-  <div class="pip" id="pip" onclick="toggle()">
-    <div class="pip-inner">
-      <iframe id="pip-frame" src="" tabindex="-1"></iframe>
+  <div class="pip-container" id="pip" onclick="toggle()">
+    <div class="pip-viewport">
+      <div class="pip-clone" id="pip-clone">
+        <iframe id="pip-iframe" src="" allow="autoplay"></iframe>
+      </div>
     </div>
     <div class="pip-label" id="pip-label">Behind the Scenes ↗</div>
   </div>
@@ -244,96 +130,20 @@
 
   document.getElementById('show-subtitle').textContent = SHOW_TITLE + '  ·  Dual Stream Archive';
 
-  function onYouTubeIframeAPIReady() {
-    playerMain = new YT.Player('yt-main', {
-      videoId: MAIN_VIDEO_ID,
-      playerVars: { autoplay: 1, controls: 1, rel: 0, modestbranding: 1, enablejsapi: 1, origin: location.origin },
-      events: { onReady: onPlayerReady, onStateChange: onMainStateChange }
-    });
-
-    playerAlt = new YT.Player('yt-alt', {
-      videoId: BTS_VIDEO_ID,
-      playerVars: { autoplay: 1, controls: 0, rel: 0, modestbranding: 1, enablejsapi: 1, mute: 1, origin: location.origin },
-      events: { onReady: onPlayerReady }
-    });
-
-    document.getElementById('pip-frame').src =
-      'https://www.youtube.com/embed/' + BTS_VIDEO_ID +
-      '?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&origin=' + location.origin;
+  function sizePip() {
+    const stage  = document.getElementById('stage');
+    const pip    = document.getElementById('pip');
+    const clone  = document.getElementById('pip-clone');
+    const frame  = document.getElementById('pip-iframe');
+    const stageW = stage.offsetWidth;
+    const stageH = stage.offsetHeight;
+    const pipW   = pip.offsetWidth;
+    const scale  = pipW / stageW;
+    frame.style.width  = stageW + 'px';
+    frame.style.height = stageH + 'px';
+    clone.style.transform = 'scale(' + scale + ')';
   }
+  window.addEventListener('resize', sizePip);
 
-  function onPlayerReady() {
-    playersReady++;
-    if (playersReady === 2) {
-      setTimeout(() => {
-        try { playerAlt.seekTo(playerMain.getCurrentTime(), true); } catch(e) {}
-        startSyncLoop();
-        document.getElementById('loading').classList.add('gone');
-      }, 800);
-    }
-  }
-
-  function onMainStateChange(e) {
-    if (!playerAlt) return;
-    if (e.data === YT.PlayerState.PLAYING) playerAlt.playVideo();
-    else if (e.data === YT.PlayerState.PAUSED) playerAlt.pauseVideo();
-  }
-
-  function startSyncLoop() {
-    setInterval(() => {
-      if (!playerMain || !playerAlt) return;
-      try {
-        const mainT = playerMain.getCurrentTime();
-        const altT  = playerAlt.getCurrentTime();
-        if (Math.abs(mainT - altT) > 1.0) playerAlt.seekTo(mainT, true);
-      } catch(e) {}
-    }, 5000);
-  }
-
-  function toggle() {
-    if (!playerMain || !playerAlt) return;
-
-    const shutter = document.getElementById('shutter');
-    shutter.classList.add('fire');
-    setTimeout(() => shutter.classList.remove('fire'), 100);
-
-    showingMain = !showingMain;
-
-    try {
-      if (showingMain) {
-        const t = playerAlt.getCurrentTime();
-        playerMain.seekTo(t, true);
-        playerMain.unMute();
-        playerAlt.mute();
-      } else {
-        const t = playerMain.getCurrentTime();
-        playerAlt.seekTo(t, true);
-        playerAlt.unMute();
-        playerMain.mute();
-      }
-    } catch(e) {}
-
-    document.getElementById('wrap-main').classList.toggle('behind', !showingMain);
-    document.getElementById('wrap-alt').classList.toggle('behind', showingMain);
-
-    const badge  = document.getElementById('badge');
-    const label  = document.getElementById('pip-label');
-    const footer = document.getElementById('footer-status');
-    const pip    = document.getElementById('pip-frame');
-
-    if (showingMain) {
-      badge.textContent = 'Performance';
-      label.textContent = 'Behind the Scenes ↗';
-      pip.src = 'https://www.youtube.com/embed/' + BTS_VIDEO_ID + '?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&origin=' + location.origin;
-      footer.innerHTML = 'Both streams running &nbsp;·&nbsp; <span>Performance</span> active &nbsp;·&nbsp; Click PiP to switch';
-    } else {
-      badge.textContent = 'Behind the Scenes';
-      label.textContent = 'Performance ↗';
-      pip.src = 'https://www.youtube.com/embed/' + MAIN_VIDEO_ID + '?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&origin=' + location.origin;
-      footer.innerHTML = 'Both streams running &nbsp;·&nbsp; <span>Behind the Scenes</span> active &nbsp;·&nbsp; Click PiP to switch';
-    }
-  }
-</script>
-
-</body>
-</html>
+  function setPipSrc(videoId, startSeconds) {
+    const f
