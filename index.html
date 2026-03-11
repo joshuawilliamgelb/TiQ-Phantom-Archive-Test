@@ -43,15 +43,12 @@
     object-fit: contain;
   }
 
+  /* ── Controls bar ── */
   .controls {
     position: absolute;
     bottom: 0; left: 0; right: 0;
-    height: 48px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0 14px;
-    background: linear-gradient(transparent, rgba(0,0,0,0.75));
+    padding: 0 12px 10px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.85));
     opacity: 0;
     transition: opacity 0.25s;
     z-index: 20;
@@ -59,27 +56,27 @@
 
   .stage:hover .controls { opacity: 1; }
 
-  .btn {
-    background: none;
-    border: none;
-    color: #e8e2d9;
+  /* Progress / scrubber row */
+  .scrubber-row {
+    position: relative;
+    width: 100%;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
     cursor: pointer;
-    font-size: 14px;
-    padding: 4px 6px;
-    flex-shrink: 0;
-    opacity: 0.85;
-    transition: opacity 0.15s;
   }
-  .btn:hover { opacity: 1; }
 
-  .progress {
-    flex: 1;
+  .progress-track {
+    position: absolute;
+    left: 0; right: 0;
     height: 3px;
     background: rgba(255,255,255,0.2);
     border-radius: 2px;
-    cursor: pointer;
-    position: relative;
+    transition: height 0.15s;
   }
+
+  .scrubber-row:hover .progress-track { height: 5px; }
 
   .progress-fill {
     height: 100%;
@@ -87,20 +84,120 @@
     border-radius: 2px;
     width: 0%;
     pointer-events: none;
+    position: relative;
   }
+
+  /* Scrubber thumb */
+  .progress-thumb {
+    position: absolute;
+    right: -5px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 10px; height: 10px;
+    background: #c8a97e;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+  }
+  .scrubber-row:hover .progress-thumb { opacity: 1; }
+
+  /* Timeline hover preview */
+  .preview-bubble {
+    position: absolute;
+    bottom: 28px;
+    transform: translateX(-50%);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+    z-index: 30;
+  }
+
+  .preview-bubble.visible { display: flex; }
+
+  .preview-canvas {
+    width: 160px;
+    height: 90px;
+    border: 1px solid rgba(200,169,126,0.5);
+    background: #000;
+    display: block;
+  }
+
+  .preview-time {
+    font-family: monospace;
+    font-size: 10px;
+    color: #c8a97e;
+    margin-top: 3px;
+    background: rgba(0,0,0,0.7);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+
+  /* Bottom controls row */
+  .controls-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn {
+    background: none;
+    border: none;
+    color: #e8e2d9;
+    cursor: pointer;
+    font-size: 15px;
+    padding: 2px 4px;
+    flex-shrink: 0;
+    opacity: 0.85;
+    transition: opacity 0.15s;
+    line-height: 1;
+  }
+  .btn:hover { opacity: 1; }
 
   .time {
     font-family: monospace;
     font-size: 11px;
     color: #e8e2d9;
-    opacity: 0.7;
+    opacity: 0.65;
     white-space: nowrap;
     flex-shrink: 0;
   }
 
+  /* Volume control */
+  .volume-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+
+  .volume-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 70px;
+    height: 3px;
+    background: rgba(255,255,255,0.25);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    accent-color: #c8a97e;
+  }
+
+  .volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #c8a97e;
+    cursor: pointer;
+  }
+
+  .spacer { flex: 1; }
+
+  /* PiP */
   .pip {
     position: absolute;
-    top: 12px;
+    bottom: 80px;
     right: 12px;
     width: 16%;
     aspect-ratio: 16/9;
@@ -124,7 +221,7 @@
   .upper-shield {
     position: absolute;
     top: 0; left: 0; right: 0;
-    height: calc(100% - 48px);
+    height: calc(100% - 80px);
     z-index: 10;
     cursor: default;
   }
@@ -136,7 +233,7 @@
      SET YOUR VIDEO URLS HERE
 ═══════════════════════════════════ -->
 <script>
-  const MAIN_URL = 'https://archive.org/download/tiq-phantom-of-the-opera/SYNC%20ARCHIVE%20-%20Phantom.mov';
+  const MAIN_URL = 'https://ia803202.us.archive.org/20/items/tiq-phantom-of-the-opera/SYNC%20ARCHIVE%20-%20Phantom.mp4';
   const BTS_URL  = 'PASTE_BTS_VIDEO_URL_HERE';
 </script>
 <!-- ═══════════════════════════════════ -->
@@ -158,30 +255,63 @@
   <div class="upper-shield" onclick="togglePlayPause()"></div>
 
   <div class="controls">
-    <button class="btn" id="btn-play" onclick="togglePlayPause()">▶</button>
-    <div class="progress" id="progress" onclick="seek(event)">
-      <div class="progress-fill" id="progress-fill"></div>
+    <!-- Scrubber -->
+    <div class="scrubber-row" id="scrubber"
+         onclick="seek(event)"
+         onmousemove="scrubPreview(event)"
+         onmouseleave="hidePreview()">
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill">
+          <div class="progress-thumb"></div>
+        </div>
+      </div>
+      <!-- Hover preview bubble -->
+      <div class="preview-bubble" id="preview-bubble">
+        <canvas class="preview-canvas" id="preview-canvas" width="160" height="90"></canvas>
+        <div class="preview-time" id="preview-time">0:00</div>
+      </div>
     </div>
-    <div class="time" id="time-display">0:00 / 0:00</div>
-    <button class="btn" onclick="toggleMute()">🔊</button>
+
+    <!-- Controls row -->
+    <div class="controls-row">
+      <button class="btn" id="btn-play" onclick="togglePlayPause()">▶</button>
+
+      <div class="volume-group">
+        <button class="btn" id="btn-mute" onclick="toggleMute()">🔊</button>
+        <input type="range" class="volume-slider" id="volume-slider"
+               min="0" max="1" step="0.02" value="1"
+               oninput="setVolume(this.value)">
+      </div>
+
+      <div class="time" id="time-display">0:00 / 0:00</div>
+
+      <div class="spacer"></div>
+
+      <button class="btn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
+    </div>
   </div>
 
 </div>
 
+<!-- Hidden video for thumbnail scrubbing -->
+<video id="vid-thumb" preload="auto" muted playsinline style="display:none;"></video>
+
 <script>
-  const vidMain = document.getElementById('vid-main');
-  const vidBts  = document.getElementById('vid-bts');
-  const vidPip  = document.getElementById('vid-pip');
+  const vidMain  = document.getElementById('vid-main');
+  const vidBts   = document.getElementById('vid-bts');
+  const vidPip   = document.getElementById('vid-pip');
+  const vidThumb = document.getElementById('vid-thumb');
 
   let showingMain = true;
   let isMuted = false;
 
-  vidMain.src = MAIN_URL;
-  vidBts.src  = BTS_URL;
-  vidPip.src  = BTS_URL;
+  vidMain.src  = MAIN_URL;
+  vidBts.src   = BTS_URL;
+  vidPip.src   = BTS_URL;
+  vidThumb.src = MAIN_URL; // thumbnail scrub uses main video
 
+  // ── Playback sync ──
   vidMain.addEventListener('play', () => {
-    syncBts();
     vidBts.play().catch(()=>{});
     vidPip.play().catch(()=>{});
     document.getElementById('btn-play').textContent = '⏸';
@@ -194,8 +324,8 @@
   });
 
   vidMain.addEventListener('seeked', () => {
-    syncBts();
-    syncPip();
+    vidBts.currentTime = vidMain.currentTime;
+    vidPip.currentTime = vidMain.currentTime;
   });
 
   vidMain.addEventListener('timeupdate', () => {
@@ -205,9 +335,11 @@
     }
   });
 
-  function syncBts() { vidBts.currentTime = vidMain.currentTime; }
-  function syncPip() { vidPip.currentTime = vidMain.currentTime; }
+  vidMain.addEventListener('canplay', () => {
+    vidMain.play().catch(()=>{});
+  }, { once: true });
 
+  // ── Controls ──
   function togglePlayPause() {
     if (vidMain.paused) { vidMain.play(); } else { vidMain.pause(); }
   }
@@ -215,13 +347,21 @@
   function toggleMute() {
     isMuted = !isMuted;
     vidMain.muted = isMuted;
-    document.querySelector('.btn:last-child').textContent = isMuted ? '🔇' : '🔊';
+    document.getElementById('btn-mute').textContent = isMuted ? '🔇' : '🔊';
+    document.getElementById('volume-slider').value = isMuted ? 0 : vidMain.volume;
+  }
+
+  function setVolume(val) {
+    vidMain.volume = val;
+    isMuted = (val == 0);
+    vidMain.muted = isMuted;
+    document.getElementById('btn-mute').textContent = isMuted ? '🔇' : '🔊';
   }
 
   function seek(e) {
-    const bar  = document.getElementById('progress');
+    const bar  = document.getElementById('scrubber');
     const rect = bar.getBoundingClientRect();
-    const pct  = (e.clientX - rect.left) / rect.width;
+    const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     vidMain.currentTime = pct * vidMain.duration;
   }
 
@@ -235,11 +375,51 @@
 
   function fmt(s) {
     if (!s || isNaN(s)) return '0:00';
-    const m = Math.floor(s / 60);
+    const m   = Math.floor(s / 60);
     const sec = Math.floor(s % 60);
     return m + ':' + (sec < 10 ? '0' : '') + sec;
   }
 
+  // ── Timeline hover preview ──
+  let previewThrottle = null;
+
+  function scrubPreview(e) {
+    if (!vidMain.duration) return;
+    const bar    = document.getElementById('scrubber');
+    const bubble = document.getElementById('preview-bubble');
+    const canvas = document.getElementById('preview-canvas');
+    const label  = document.getElementById('preview-time');
+    const rect   = bar.getBoundingClientRect();
+    const pct    = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const t      = pct * vidMain.duration;
+
+    // Position bubble
+    const bubbleX = e.clientX - rect.left;
+    bubble.style.left = bubbleX + 'px';
+    bubble.classList.add('visible');
+    label.textContent = fmt(t);
+
+    // Throttle seek on thumb video
+    clearTimeout(previewThrottle);
+    previewThrottle = setTimeout(() => {
+      vidThumb.currentTime = t;
+    }, 80);
+  }
+
+  function hidePreview() {
+    document.getElementById('preview-bubble').classList.remove('visible');
+  }
+
+  // Draw thumb frame to canvas when seeked
+  vidThumb.addEventListener('seeked', () => {
+    const canvas = document.getElementById('preview-canvas');
+    const ctx    = canvas.getContext('2d');
+    try {
+      ctx.drawImage(vidThumb, 0, 0, canvas.width, canvas.height);
+    } catch(e) {}
+  });
+
+  // ── Toggle ──
   function toggle() {
     showingMain = !showingMain;
     const layerMain = document.getElementById('layer-main');
@@ -258,9 +438,15 @@
     if (!vidMain.paused) vidPip.play().catch(()=>{});
   }
 
-  vidMain.addEventListener('canplay', () => {
-    vidMain.play().catch(()=>{});
-  }, { once: true });
+  // ── Fullscreen ──
+  function toggleFullscreen() {
+    const stage = document.getElementById('stage');
+    if (!document.fullscreenElement) {
+      stage.requestFullscreen().catch(()=>{});
+    } else {
+      document.exitFullscreen();
+    }
+  }
 </script>
 </body>
 </html>
