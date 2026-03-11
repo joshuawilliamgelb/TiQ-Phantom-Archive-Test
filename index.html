@@ -6,225 +6,68 @@
 <title>TiQ Dual Stream</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background:#000; width:100%; height:100vh; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .stage { position:relative; width:100%; max-width:100%; aspect-ratio:16/9; }
+  .layer { position:absolute; inset:0; width:100%; height:100%; }
+  .layer.hidden { opacity:0; pointer-events:none; }
+  video { width:100%; height:100%; display:block; object-fit:contain; }
 
-  body {
-    background: #000;
-    width: 100%;
-    height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-  }
-
-  .stage {
-    position: relative;
-    width: 100%;
-    max-width: 100%;
-    aspect-ratio: 16/9;
-  }
-
-  .layer {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-  }
-
-  .layer.hidden {
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  video {
-    width: 100%;
-    height: 100%;
-    display: block;
-    object-fit: contain;
-  }
-
-  /* ── Controls bar ── */
   .controls {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    padding: 0 12px 10px;
-    background: linear-gradient(transparent, rgba(0,0,0,0.85));
-    opacity: 0;
-    transition: opacity 0.25s;
-    z-index: 20;
+    position:absolute; bottom:0; left:0; right:0;
+    padding:0 12px 10px;
+    background:linear-gradient(transparent, rgba(0,0,0,0.85));
+    opacity:0; transition:opacity 0.25s; z-index:20;
   }
+  .stage:hover .controls { opacity:1; }
 
-  .stage:hover .controls { opacity: 1; }
-
-  /* Progress / scrubber row */
   .scrubber-row {
-    position: relative;
-    width: 100%;
-    height: 18px;
-    display: flex;
-    align-items: center;
-    margin-bottom: 6px;
-    cursor: pointer;
+    position:relative; width:100%; height:18px;
+    display:flex; align-items:center; margin-bottom:6px; cursor:pointer;
   }
-
   .progress-track {
-    position: absolute;
-    left: 0; right: 0;
-    height: 3px;
-    background: rgba(255,255,255,0.2);
-    border-radius: 2px;
-    transition: height 0.15s;
+    position:absolute; left:0; right:0; height:3px;
+    background:rgba(255,255,255,0.2); border-radius:2px; transition:height 0.15s;
   }
-
-  .scrubber-row:hover .progress-track { height: 5px; }
-
-  .progress-fill {
-    height: 100%;
-    background: #c8a97e;
-    border-radius: 2px;
-    width: 0%;
-    pointer-events: none;
-    position: relative;
-  }
-
-  /* Scrubber thumb */
+  .scrubber-row:hover .progress-track { height:5px; }
+  .progress-fill { height:100%; background:#c8a97e; border-radius:2px; width:0%; pointer-events:none; position:relative; }
   .progress-thumb {
-    position: absolute;
-    right: -5px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 10px; height: 10px;
-    background: #c8a97e;
-    border-radius: 50%;
-    opacity: 0;
-    transition: opacity 0.15s;
-    pointer-events: none;
+    position:absolute; right:-5px; top:50%; transform:translateY(-50%);
+    width:10px; height:10px; background:#c8a97e; border-radius:50%;
+    opacity:0; transition:opacity 0.15s; pointer-events:none;
   }
-  .scrubber-row:hover .progress-thumb { opacity: 1; }
+  .scrubber-row:hover .progress-thumb { opacity:1; }
 
   /* Timeline hover preview */
   .preview-bubble {
-    position: absolute;
-    bottom: 28px;
-    transform: translateX(-50%);
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    pointer-events: none;
-    z-index: 30;
+    position:absolute; bottom:28px; transform:translateX(-50%);
+    display:none; flex-direction:column; align-items:center; pointer-events:none; z-index:30;
   }
+  .preview-bubble.visible { display:flex; }
+  .preview-canvas { width:160px; height:90px; border:1px solid rgba(200,169,126,0.5); background:#000; display:block; }
+  .preview-time { font-family:monospace; font-size:10px; color:#c8a97e; margin-top:3px; background:rgba(0,0,0,0.7); padding:1px 5px; border-radius:2px; }
 
-  .preview-bubble.visible { display: flex; }
+  .controls-row { display:flex; align-items:center; gap:8px; }
+  .btn { background:none; border:none; color:#e8e2d9; cursor:pointer; font-size:15px; padding:2px 4px; flex-shrink:0; opacity:0.85; transition:opacity 0.15s; line-height:1; }
+  .btn:hover { opacity:1; }
+  .time { font-family:monospace; font-size:11px; color:#e8e2d9; opacity:0.65; white-space:nowrap; flex-shrink:0; }
 
-  .preview-canvas {
-    width: 160px;
-    height: 90px;
-    border: 1px solid rgba(200,169,126,0.5);
-    background: #000;
-    display: block;
-  }
+  .volume-group { display:flex; align-items:center; gap:5px; flex-shrink:0; }
+  .volume-slider { -webkit-appearance:none; appearance:none; width:70px; height:3px; background:rgba(255,255,255,0.25); border-radius:2px; outline:none; cursor:pointer; accent-color:#c8a97e; }
+  .volume-slider::-webkit-slider-thumb { -webkit-appearance:none; width:10px; height:10px; border-radius:50%; background:#c8a97e; cursor:pointer; }
+  .spacer { flex:1; }
 
-  .preview-time {
-    font-family: monospace;
-    font-size: 10px;
-    color: #c8a97e;
-    margin-top: 3px;
-    background: rgba(0,0,0,0.7);
-    padding: 1px 5px;
-    border-radius: 2px;
-  }
-
-  /* Bottom controls row */
-  .controls-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .btn {
-    background: none;
-    border: none;
-    color: #e8e2d9;
-    cursor: pointer;
-    font-size: 15px;
-    padding: 2px 4px;
-    flex-shrink: 0;
-    opacity: 0.85;
-    transition: opacity 0.15s;
-    line-height: 1;
-  }
-  .btn:hover { opacity: 1; }
-
-  .time {
-    font-family: monospace;
-    font-size: 11px;
-    color: #e8e2d9;
-    opacity: 0.65;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
-  /* Volume control */
-  .volume-group {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    flex-shrink: 0;
-  }
-
-  .volume-slider {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 70px;
-    height: 3px;
-    background: rgba(255,255,255,0.25);
-    border-radius: 2px;
-    outline: none;
-    cursor: pointer;
-    accent-color: #c8a97e;
-  }
-
-  .volume-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    background: #c8a97e;
-    cursor: pointer;
-  }
-
-  .spacer { flex: 1; }
-
-  /* PiP */
+  /* PiP — lower right, above controls */
   .pip {
-    position: absolute;
-    bottom: 80px;
-    right: 12px;
-    width: 16%;
-    aspect-ratio: 16/9;
-    z-index: 15;
-    cursor: pointer;
-    overflow: hidden;
-    border: 1px solid rgba(200,169,126,0.4);
-    transition: border-color 0.2s, transform 0.2s;
-    background: #000;
+    position:absolute; bottom:80px; right:12px;
+    width:16%; aspect-ratio:16/9; z-index:15; cursor:pointer;
+    overflow:hidden; border:1px solid rgba(200,169,126,0.4);
+    transition:border-color 0.2s, transform 0.2s; background:#000;
   }
+  .pip:hover { border-color:#c8a97e; transform:scale(1.05); }
+  .pip video { width:100%; height:100%; object-fit:cover; pointer-events:none; }
+  .pip video.hidden-pip { display:none; }
 
-  .pip:hover { border-color: #c8a97e; transform: scale(1.05); }
-
-  .pip video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    pointer-events: none;
-  }
-
-  .upper-shield {
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: calc(100% - 80px);
-    z-index: 10;
-    cursor: default;
-  }
+  .upper-shield { position:absolute; top:0; left:0; right:0; height:calc(100% - 80px); z-index:10; cursor:default; }
 </style>
 </head>
 <body>
@@ -233,7 +76,7 @@
      SET YOUR VIDEO URLS HERE
 ═══════════════════════════════════ -->
 <script>
-  const MAIN_URL = 'https://ia803202.us.archive.org/20/items/tiq-phantom-of-the-opera/SYNC%20ARCHIVE%20-%20Phantom.mp4';
+  const MAIN_URL = 'https://ia903202.us.archive.org/20/items/tiq-phantom-of-the-opera/SYNC%20ARCHIVE%20-%20Phantom.mp4';
   const BTS_URL  = 'PASTE_BTS_VIDEO_URL_HERE';
 </script>
 <!-- ═══════════════════════════════════ -->
@@ -243,19 +86,19 @@
   <div class="layer" id="layer-main">
     <video id="vid-main" preload="auto" playsinline></video>
   </div>
-
   <div class="layer hidden" id="layer-bts">
     <video id="vid-bts" preload="auto" playsinline muted></video>
   </div>
 
+  <!-- PiP has two preloaded videos — swap instantly, no src reload -->
   <div class="pip" id="pip" onclick="toggle()">
-    <video id="vid-pip" muted playsinline></video>
+    <video id="vid-pip-bts" muted playsinline></video>
+    <video id="vid-pip-main" muted playsinline class="hidden-pip"></video>
   </div>
 
   <div class="upper-shield" onclick="togglePlayPause()"></div>
 
   <div class="controls">
-    <!-- Scrubber -->
     <div class="scrubber-row" id="scrubber"
          onclick="seek(event)"
          onmousemove="scrubPreview(event)"
@@ -265,67 +108,62 @@
           <div class="progress-thumb"></div>
         </div>
       </div>
-      <!-- Hover preview bubble -->
       <div class="preview-bubble" id="preview-bubble">
         <canvas class="preview-canvas" id="preview-canvas" width="160" height="90"></canvas>
         <div class="preview-time" id="preview-time">0:00</div>
       </div>
     </div>
-
-    <!-- Controls row -->
     <div class="controls-row">
       <button class="btn" id="btn-play" onclick="togglePlayPause()">▶</button>
-
       <div class="volume-group">
         <button class="btn" id="btn-mute" onclick="toggleMute()">🔊</button>
-        <input type="range" class="volume-slider" id="volume-slider"
-               min="0" max="1" step="0.02" value="1"
-               oninput="setVolume(this.value)">
+        <input type="range" class="volume-slider" id="volume-slider" min="0" max="1" step="0.02" value="1" oninput="setVolume(this.value)">
       </div>
-
       <div class="time" id="time-display">0:00 / 0:00</div>
-
       <div class="spacer"></div>
-
       <button class="btn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
     </div>
   </div>
-
 </div>
 
-<!-- Hidden video for thumbnail scrubbing -->
 <video id="vid-thumb" preload="auto" muted playsinline style="display:none;"></video>
 
 <script>
-  const vidMain  = document.getElementById('vid-main');
-  const vidBts   = document.getElementById('vid-bts');
-  const vidPip   = document.getElementById('vid-pip');
-  const vidThumb = document.getElementById('vid-thumb');
+  const vidMain    = document.getElementById('vid-main');
+  const vidBts     = document.getElementById('vid-bts');
+  const vidPipBts  = document.getElementById('vid-pip-bts');
+  const vidPipMain = document.getElementById('vid-pip-main');
+  const vidThumb   = document.getElementById('vid-thumb');
 
   let showingMain = true;
   let isMuted = false;
+  let thumbBusy = false;
 
-  vidMain.src  = MAIN_URL;
-  vidBts.src   = BTS_URL;
-  vidPip.src   = BTS_URL;
-  vidThumb.src = MAIN_URL; // thumbnail scrub uses main video
+  // Set sources
+  vidMain.src    = MAIN_URL;
+  vidBts.src     = BTS_URL;
+  vidPipBts.src  = BTS_URL;
+  vidPipMain.src = MAIN_URL;
+  vidThumb.src   = MAIN_URL;
 
-  // ── Playback sync ──
+  // ── Sync everything to main ──
   vidMain.addEventListener('play', () => {
     vidBts.play().catch(()=>{});
-    vidPip.play().catch(()=>{});
+    vidPipBts.play().catch(()=>{});
+    vidPipMain.play().catch(()=>{});
     document.getElementById('btn-play').textContent = '⏸';
   });
 
   vidMain.addEventListener('pause', () => {
-    vidBts.pause();
-    vidPip.pause();
+    vidBts.pause(); vidPipBts.pause(); vidPipMain.pause();
     document.getElementById('btn-play').textContent = '▶';
   });
 
   vidMain.addEventListener('seeked', () => {
-    vidBts.currentTime = vidMain.currentTime;
-    vidPip.currentTime = vidMain.currentTime;
+    const t = vidMain.currentTime;
+    vidBts.currentTime     = t;
+    vidPipBts.currentTime  = t;
+    vidPipMain.currentTime = t;
   });
 
   vidMain.addEventListener('timeupdate', () => {
@@ -352,7 +190,7 @@
   }
 
   function setVolume(val) {
-    vidMain.volume = val;
+    vidMain.volume = parseFloat(val);
     isMuted = (val == 0);
     vidMain.muted = isMuted;
     document.getElementById('btn-mute').textContent = isMuted ? '🔇' : '🔊';
@@ -375,77 +213,71 @@
 
   function fmt(s) {
     if (!s || isNaN(s)) return '0:00';
-    const m   = Math.floor(s / 60);
+    const m = Math.floor(s / 60);
     const sec = Math.floor(s % 60);
     return m + ':' + (sec < 10 ? '0' : '') + sec;
   }
 
   // ── Timeline hover preview ──
+  // Throttled heavily — only seek thumb if not already seeking
   let previewThrottle = null;
+  let lastPreviewTime = -1;
 
   function scrubPreview(e) {
     if (!vidMain.duration) return;
-    const bar    = document.getElementById('scrubber');
-    const bubble = document.getElementById('preview-bubble');
-    const canvas = document.getElementById('preview-canvas');
-    const label  = document.getElementById('preview-time');
-    const rect   = bar.getBoundingClientRect();
-    const pct    = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const t      = pct * vidMain.duration;
-
-    // Position bubble
+    const bar   = document.getElementById('scrubber');
+    const rect  = bar.getBoundingClientRect();
+    const pct   = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const t     = pct * vidMain.duration;
     const bubbleX = e.clientX - rect.left;
+
+    const bubble = document.getElementById('preview-bubble');
     bubble.style.left = bubbleX + 'px';
     bubble.classList.add('visible');
-    label.textContent = fmt(t);
+    document.getElementById('preview-time').textContent = fmt(t);
 
-    // Throttle seek on thumb video
-    clearTimeout(previewThrottle);
-    previewThrottle = setTimeout(() => {
-      vidThumb.currentTime = t;
-    }, 80);
+    // Only seek if moved more than 2 seconds and thumb is free
+    if (!thumbBusy && Math.abs(t - lastPreviewTime) > 2) {
+      thumbBusy = true;
+      lastPreviewTime = t;
+      clearTimeout(previewThrottle);
+      previewThrottle = setTimeout(() => {
+        vidThumb.currentTime = t;
+      }, 150);
+    }
   }
 
   function hidePreview() {
     document.getElementById('preview-bubble').classList.remove('visible');
   }
 
-  // Draw thumb frame to canvas when seeked
   vidThumb.addEventListener('seeked', () => {
     const canvas = document.getElementById('preview-canvas');
-    const ctx    = canvas.getContext('2d');
-    try {
-      ctx.drawImage(vidThumb, 0, 0, canvas.width, canvas.height);
-    } catch(e) {}
+    const ctx = canvas.getContext('2d');
+    try { ctx.drawImage(vidThumb, 0, 0, canvas.width, canvas.height); } catch(e) {}
+    thumbBusy = false;
   });
 
   // ── Toggle ──
   function toggle() {
     showingMain = !showingMain;
-    const layerMain = document.getElementById('layer-main');
-    const layerBts  = document.getElementById('layer-bts');
+    document.getElementById('layer-main').classList.toggle('hidden', !showingMain);
+    document.getElementById('layer-bts').classList.toggle('hidden', showingMain);
 
     if (showingMain) {
-      layerMain.classList.remove('hidden');
-      layerBts.classList.add('hidden');
-      vidPip.src = BTS_URL;
+      vidPipBts.classList.remove('hidden-pip');
+      vidPipMain.classList.add('hidden-pip');
     } else {
-      layerBts.classList.remove('hidden');
-      layerMain.classList.add('hidden');
-      vidPip.src = MAIN_URL;
+      vidPipMain.classList.remove('hidden-pip');
+      vidPipBts.classList.add('hidden-pip');
     }
-    vidPip.currentTime = vidMain.currentTime;
-    if (!vidMain.paused) vidPip.play().catch(()=>{});
   }
 
   // ── Fullscreen ──
   function toggleFullscreen() {
     const stage = document.getElementById('stage');
-    if (!document.fullscreenElement) {
-      stage.requestFullscreen().catch(()=>{});
-    } else {
-      document.exitFullscreen();
-    }
+    if (!document.fullscreenElement) { stage.requestFullscreen().catch(()=>{}); }
+    else { document.exitFullscreen(); }
   }
 </script>
 </body>
