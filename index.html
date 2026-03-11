@@ -37,26 +37,36 @@
   }
   .scrubber-row:hover .progress-thumb { opacity:1; }
 
-  /* Timeline hover preview */
+  /* Sprite-based preview bubble */
   .preview-bubble {
     position:absolute; bottom:28px; transform:translateX(-50%);
-    display:none; flex-direction:column; align-items:center; pointer-events:none; z-index:30;
+    display:none; flex-direction:column; align-items:center;
+    pointer-events:none; z-index:30;
   }
   .preview-bubble.visible { display:flex; }
-  .preview-canvas { width:160px; height:90px; border:1px solid rgba(200,169,126,0.5); background:#000; display:block; }
-  .preview-time { font-family:monospace; font-size:10px; color:#c8a97e; margin-top:3px; background:rgba(0,0,0,0.7); padding:1px 5px; border-radius:2px; }
+  .preview-frame {
+    width:160px; height:90px;
+    border:1px solid rgba(200,169,126,0.5);
+    background:#000 no-repeat;
+    background-size: auto 90px;
+    display:block;
+    flex-shrink:0;
+  }
+  .preview-time {
+    font-family:monospace; font-size:10px; color:#c8a97e;
+    margin-top:3px; background:rgba(0,0,0,0.7);
+    padding:1px 5px; border-radius:2px;
+  }
 
   .controls-row { display:flex; align-items:center; gap:8px; }
   .btn { background:none; border:none; color:#e8e2d9; cursor:pointer; font-size:15px; padding:2px 4px; flex-shrink:0; opacity:0.85; transition:opacity 0.15s; line-height:1; }
   .btn:hover { opacity:1; }
   .time { font-family:monospace; font-size:11px; color:#e8e2d9; opacity:0.65; white-space:nowrap; flex-shrink:0; }
-
   .volume-group { display:flex; align-items:center; gap:5px; flex-shrink:0; }
   .volume-slider { -webkit-appearance:none; appearance:none; width:70px; height:3px; background:rgba(255,255,255,0.25); border-radius:2px; outline:none; cursor:pointer; accent-color:#c8a97e; }
   .volume-slider::-webkit-slider-thumb { -webkit-appearance:none; width:10px; height:10px; border-radius:50%; background:#c8a97e; cursor:pointer; }
   .spacer { flex:1; }
 
-  /* PiP — lower right, above controls */
   .pip {
     position:absolute; bottom:80px; right:12px;
     width:16%; aspect-ratio:16/9; z-index:15; cursor:pointer;
@@ -66,7 +76,6 @@
   .pip:hover { border-color:#c8a97e; transform:scale(1.05); }
   .pip video { width:100%; height:100%; object-fit:cover; pointer-events:none; }
   .pip video.hidden-pip { display:none; }
-
   .upper-shield { position:absolute; top:0; left:0; right:0; height:calc(100% - 80px); z-index:10; cursor:default; }
 </style>
 </head>
@@ -76,13 +85,15 @@
      SET YOUR VIDEO URLS HERE
 ═══════════════════════════════════ -->
 <script>
-  const MAIN_URL = 'https://ia903202.us.archive.org/20/items/tiq-phantom-of-the-opera/SYNC%20ARCHIVE%20-%20Phantom.mp4';
-  const BTS_URL  = 'PASTE_BTS_VIDEO_URL_HERE';
+  const MAIN_URL      = 'https://ia803202.us.archive.org/20/items/tiq-phantom-of-the-opera/SYNC%20ARCHIVE%20-%20Phantom.mp4';
+  const BTS_URL       = 'PASTE_BTS_VIDEO_URL_HERE';
+  const THUMB_MAIN    = 'thumbs-main.jpg';
+  const THUMB_BTS     = 'thumbs-bts.jpg';
+  const THUMB_INTERVAL = 10; // seconds between each thumbnail
 </script>
 <!-- ═══════════════════════════════════ -->
 
 <div class="stage" id="stage">
-
   <div class="layer" id="layer-main">
     <video id="vid-main" preload="auto" playsinline></video>
   </div>
@@ -90,7 +101,6 @@
     <video id="vid-bts" preload="auto" playsinline muted></video>
   </div>
 
-  <!-- PiP has two preloaded videos — swap instantly, no src reload -->
   <div class="pip" id="pip" onclick="toggle()">
     <video id="vid-pip-bts" muted playsinline></video>
     <video id="vid-pip-main" muted playsinline class="hidden-pip"></video>
@@ -109,7 +119,7 @@
         </div>
       </div>
       <div class="preview-bubble" id="preview-bubble">
-        <canvas class="preview-canvas" id="preview-canvas" width="160" height="90"></canvas>
+        <div class="preview-frame" id="preview-frame"></div>
         <div class="preview-time" id="preview-time">0:00</div>
       </div>
     </div>
@@ -117,7 +127,8 @@
       <button class="btn" id="btn-play" onclick="togglePlayPause()">▶</button>
       <div class="volume-group">
         <button class="btn" id="btn-mute" onclick="toggleMute()">🔊</button>
-        <input type="range" class="volume-slider" id="volume-slider" min="0" max="1" step="0.02" value="1" oninput="setVolume(this.value)">
+        <input type="range" class="volume-slider" id="volume-slider"
+               min="0" max="1" step="0.02" value="1" oninput="setVolume(this.value)">
       </div>
       <div class="time" id="time-display">0:00 / 0:00</div>
       <div class="spacer"></div>
@@ -126,25 +137,19 @@
   </div>
 </div>
 
-<video id="vid-thumb" preload="auto" muted playsinline style="display:none;"></video>
-
 <script>
   const vidMain    = document.getElementById('vid-main');
   const vidBts     = document.getElementById('vid-bts');
   const vidPipBts  = document.getElementById('vid-pip-bts');
   const vidPipMain = document.getElementById('vid-pip-main');
-  const vidThumb   = document.getElementById('vid-thumb');
 
   let showingMain = true;
   let isMuted = false;
-  let thumbBusy = false;
 
-  // Set sources
   vidMain.src    = MAIN_URL;
   vidBts.src     = BTS_URL;
   vidPipBts.src  = BTS_URL;
   vidPipMain.src = MAIN_URL;
-  vidThumb.src   = MAIN_URL;
 
   // ── Sync everything to main ──
   vidMain.addEventListener('play', () => {
@@ -161,8 +166,8 @@
 
   vidMain.addEventListener('seeked', () => {
     const t = vidMain.currentTime;
-    vidBts.currentTime     = t;
-    vidPipBts.currentTime  = t;
+    vidBts.currentTime = t;
+    vidPipBts.currentTime = t;
     vidPipMain.currentTime = t;
   });
 
@@ -218,45 +223,41 @@
     return m + ':' + (sec < 10 ? '0' : '') + sec;
   }
 
-  // ── Timeline hover preview ──
-  // Throttled heavily — only seek thumb if not already seeking
-  let previewThrottle = null;
-  let lastPreviewTime = -1;
-
+  // ── Sprite-based preview — instant, no video seeking ──
   function scrubPreview(e) {
     if (!vidMain.duration) return;
-    const bar   = document.getElementById('scrubber');
-    const rect  = bar.getBoundingClientRect();
-    const pct   = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const t     = pct * vidMain.duration;
-    const bubbleX = e.clientX - rect.left;
-
+    const bar    = document.getElementById('scrubber');
+    const rect   = bar.getBoundingClientRect();
+    const pct    = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const t      = pct * vidMain.duration;
+    const frame  = document.getElementById('preview-frame');
     const bubble = document.getElementById('preview-bubble');
-    bubble.style.left = bubbleX + 'px';
-    bubble.classList.add('visible');
-    document.getElementById('preview-time').textContent = fmt(t);
+    const label  = document.getElementById('preview-time');
 
-    // Only seek if moved more than 2 seconds and thumb is free
-    if (!thumbBusy && Math.abs(t - lastPreviewTime) > 2) {
-      thumbBusy = true;
-      lastPreviewTime = t;
-      clearTimeout(previewThrottle);
-      previewThrottle = setTimeout(() => {
-        vidThumb.currentTime = t;
-      }, 150);
-    }
+    // Which sprite to use
+    const sprite = showingMain ? THUMB_MAIN : THUMB_BTS;
+
+    // Which frame index
+    const idx = Math.floor(t / THUMB_INTERVAL);
+
+    // Each thumb is 160px wide in the strip
+    const offsetX = -(idx * 160);
+
+    frame.style.backgroundImage = `url('${sprite}')`;
+    frame.style.backgroundPosition = `${offsetX}px 0`;
+
+    // Position bubble, clamped to stay within stage
+    const stageRect = document.getElementById('stage').getBoundingClientRect();
+    const rawX = e.clientX - rect.left;
+    const clampedX = Math.max(80, Math.min(rect.width - 80, rawX));
+    bubble.style.left = clampedX + 'px';
+    bubble.classList.add('visible');
+    label.textContent = fmt(t);
   }
 
   function hidePreview() {
     document.getElementById('preview-bubble').classList.remove('visible');
   }
-
-  vidThumb.addEventListener('seeked', () => {
-    const canvas = document.getElementById('preview-canvas');
-    const ctx = canvas.getContext('2d');
-    try { ctx.drawImage(vidThumb, 0, 0, canvas.width, canvas.height); } catch(e) {}
-    thumbBusy = false;
-  });
 
   // ── Toggle ──
   function toggle() {
