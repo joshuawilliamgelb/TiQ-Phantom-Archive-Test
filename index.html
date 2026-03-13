@@ -37,7 +37,6 @@
   }
   .scrubber-row:hover .progress-thumb { opacity:1; }
 
-  /* Sprite-based preview bubble */
   .preview-bubble {
     position:absolute; bottom:28px; transform:translateX(-50%);
     display:none; flex-direction:column; align-items:center;
@@ -49,8 +48,7 @@
     border:1px solid rgba(200,169,126,0.5);
     background:#000 no-repeat;
     background-size: auto 90px;
-    display:block;
-    flex-shrink:0;
+    display:block; flex-shrink:0;
   }
   .preview-time {
     font-family:monospace; font-size:10px; color:#c8a97e;
@@ -67,31 +65,33 @@
   .volume-slider::-webkit-slider-thumb { -webkit-appearance:none; width:10px; height:10px; border-radius:50%; background:#c8a97e; cursor:pointer; }
   .spacer { flex:1; }
 
+  /* PiP — moves up when controls are visible, sits in corner otherwise */
   .pip {
-    position:absolute; bottom:80px; right:12px;
+    position:absolute;
+    bottom:12px;
+    right:12px;
     width:16%; aspect-ratio:16/9; z-index:15; cursor:pointer;
     overflow:hidden; border:1px solid rgba(200,169,126,0.4);
-    transition:border-color 0.2s, transform 0.2s; background:#000;
+    transition:border-color 0.2s, transform 0.2s, bottom 0.25s;
+    background:#000;
   }
+  .stage:hover .pip { bottom:80px; }
   .pip:hover { border-color:#c8a97e; transform:scale(1.05); }
   .pip video { width:100%; height:100%; object-fit:cover; pointer-events:none; }
   .pip video.hidden-pip { display:none; }
+
   .upper-shield { position:absolute; top:0; left:0; right:0; height:calc(100% - 80px); z-index:10; cursor:default; }
 </style>
 </head>
 <body>
 
-<!-- ═══════════════════════════════════
-     SET YOUR VIDEO URLS HERE
-═══════════════════════════════════ -->
 <script>
   const MAIN_URL      = 'https://tiq-phantom-archive.b-cdn.net/SYNC%20ARCHIVE%20-%20Phantom.mp4';
   const BTS_URL       = 'https://tiq-phantom-archive.b-cdn.net/SYNC%20ARCHIVE%20-%20Bts%20Phantom.mp4';
-  const THUMB_MAIN    = 'thumbs-main.jpg';
-  const THUMB_BTS     = 'thumbs-bts.jpg';
-  const THUMB_INTERVAL = 10; // seconds between each thumbnail
+  const THUMB_MAIN    = 'https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/thumbs-bts.jpg';
+  const THUMB_BTS     = 'https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/thumbs-main.jpg';
+  const THUMB_INTERVAL = 10;
 </script>
-<!-- ═══════════════════════════════════ -->
 
 <div class="stage" id="stage">
   <div class="layer" id="layer-main">
@@ -151,7 +151,6 @@
   vidPipBts.src  = BTS_URL;
   vidPipMain.src = MAIN_URL;
 
-  // ── Sync everything to main ──
   vidMain.addEventListener('play', () => {
     vidBts.play().catch(()=>{});
     vidPipBts.play().catch(()=>{});
@@ -182,7 +181,6 @@
     vidMain.play().catch(()=>{});
   }, { once: true });
 
-  // ── Controls ──
   function togglePlayPause() {
     if (vidMain.paused) { vidMain.play(); } else { vidMain.pause(); }
   }
@@ -223,7 +221,6 @@
     return m + ':' + (sec < 10 ? '0' : '') + sec;
   }
 
-  // ── Sprite-based preview — instant, no video seeking ──
   function scrubPreview(e) {
     if (!vidMain.duration) return;
     const bar    = document.getElementById('scrubber');
@@ -234,21 +231,14 @@
     const bubble = document.getElementById('preview-bubble');
     const label  = document.getElementById('preview-time');
 
-    // Which sprite to use
-    const sprite = showingMain ? THUMB_BTS : THUMB_MAIN;
-
-    // Which frame index
-    const idx = Math.floor(t / THUMB_INTERVAL);
-
-    // Each thumb is 160px wide in the strip
+    const sprite  = showingMain ? THUMB_MAIN : THUMB_BTS;
+    const idx     = Math.floor(t / THUMB_INTERVAL);
     const offsetX = -(idx * 160);
 
-    frame.style.backgroundImage = `url('${sprite}')`;
+    frame.style.backgroundImage    = `url('${sprite}')`;
     frame.style.backgroundPosition = `${offsetX}px 0`;
 
-    // Position bubble, clamped to stay within stage
-    const stageRect = document.getElementById('stage').getBoundingClientRect();
-    const rawX = e.clientX - rect.left;
+    const rawX     = e.clientX - rect.left;
     const clampedX = Math.max(80, Math.min(rect.width - 80, rawX));
     bubble.style.left = clampedX + 'px';
     bubble.classList.add('visible');
@@ -259,7 +249,6 @@
     document.getElementById('preview-bubble').classList.remove('visible');
   }
 
-  // ── Toggle ──
   function toggle() {
     showingMain = !showingMain;
     document.getElementById('layer-main').classList.toggle('hidden', !showingMain);
@@ -274,7 +263,6 @@
     }
   }
 
-  // ── Fullscreen ──
   function toggleFullscreen() {
     const stage = document.getElementById('stage');
     if (!document.fullscreenElement) { stage.requestFullscreen().catch(()=>{}); }
