@@ -65,11 +65,8 @@
   .volume-slider::-webkit-slider-thumb { -webkit-appearance:none; width:10px; height:10px; border-radius:50%; background:#c8a97e; cursor:pointer; }
   .spacer { flex:1; }
 
-  /* PiP — moves up when controls are visible, sits in corner otherwise */
   .pip {
-    position:absolute;
-    bottom:12px;
-    right:12px;
+    position:absolute; bottom:12px; right:12px;
     width:16%; aspect-ratio:16/9; z-index:15; cursor:pointer;
     overflow:hidden; border:1px solid rgba(200,169,126,0.4);
     transition:border-color 0.2s, transform 0.2s, bottom 0.25s;
@@ -80,53 +77,43 @@
   .pip video { width:100%; height:100%; object-fit:cover; pointer-events:none; }
   .pip video.hidden-pip { display:none; }
 
-  .upper-shield { position:absolute; top:0; left:0; right:0; height:calc(100% - 80px); z-index:10; cursor:default; }
-
-  .big-play {
-    position:absolute; inset:0;
+  /* Poster overlay — shown before play, hidden after */
+  .poster {
+    position:absolute; inset:0; z-index:25;
+    background-size:cover; background-position:center; background-repeat:no-repeat;
     display:flex; align-items:center; justify-content:center;
-    z-index:25; cursor:pointer;
-    background:rgba(0,0,0,0.25);
-    transition:opacity 0.3s;
+    cursor:pointer; transition:opacity 0.4s;
   }
-  .big-play.gone { opacity:0; pointer-events:none; }
-  .big-play-icon {
+  .poster.gone { opacity:0; pointer-events:none; }
+
+  .play-btn {
     width:72px; height:72px; border-radius:50%;
     background:rgba(0,0,0,0.55);
     border:2px solid rgba(200,169,126,0.7);
     display:flex; align-items:center; justify-content:center;
     transition:transform 0.2s, border-color 0.2s;
+    flex-shrink:0;
   }
-  .big-play:hover .big-play-icon { transform:scale(1.1); border-color:#c8a97e; }
-  .big-play-icon::after {
+  .poster:hover .play-btn { transform:scale(1.1); border-color:#c8a97e; }
+  .play-btn::after {
     content:'';
     display:block;
     width:0; height:0;
     border-style:solid;
     border-width:14px 0 14px 24px;
     border-color:transparent transparent transparent #e8e2d9;
-    margin-left:5px;
+    margin-left:6px;
   }
 
-  .play-prompt {
-    position:absolute; inset:0; z-index:25;
-    display:flex; align-items:center; justify-content:center;
-    cursor:pointer; transition:opacity 0.4s;
+  /* PiP poster */
+  .pip-poster {
+    position:absolute; inset:0; z-index:5;
+    background-size:cover; background-position:center;
+    transition:opacity 0.4s;
   }
-  .play-prompt.gone { opacity:0; pointer-events:none; }
-  .play-prompt-btn {
-    width:72px; height:72px; border-radius:50%;
-    background:rgba(0,0,0,0.55);
-    border:2px solid rgba(200,169,126,0.7);
-    display:flex; align-items:center; justify-content:center;
-    transition:background 0.2s, border-color 0.2s, transform 0.2s;
-  }
-  .play-prompt:hover .play-prompt-btn {
-    background:rgba(0,0,0,0.8);
-    border-color:#c8a97e;
-    transform:scale(1.08);
-  }
-  .play-prompt-btn svg { width:28px; height:28px; fill:#c8a97e; margin-left:4px; }
+  .pip-poster.gone { opacity:0; pointer-events:none; }
+
+  .upper-shield { position:absolute; top:0; left:0; right:0; height:calc(100% - 80px); z-index:10; cursor:default; }
 </style>
 </head>
 <body>
@@ -136,6 +123,7 @@
   const BTS_URL       = 'https://tiq-phantom-archive.b-cdn.net/SYNC%20ARCHIVE%20-%20Bts%20Phantom.mp4';
   const THUMB_MAIN    = 'https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/thumbs-bts.jpg';
   const THUMB_BTS     = 'https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/thumbs-main.jpg';
+  const POSTER_URL    = 'https://raw.githubusercontent.com/joshuawilliamgelb/TiQ-Phantom-Archive-Test/refs/heads/main/watch%20now.png';
   const THUMB_INTERVAL = 10;
 </script>
 
@@ -150,16 +138,14 @@
   <div class="pip" id="pip" onclick="toggle()">
     <video id="vid-pip-bts" muted playsinline></video>
     <video id="vid-pip-main" muted playsinline class="hidden-pip"></video>
+    <div class="pip-poster" id="pip-poster"></div>
   </div>
 
   <div class="upper-shield" onclick="togglePlayPause()"></div>
 
-  <div class="big-play" id="big-play" onclick="bigPlayClick()"><div class="big-play-icon"></div></div>
-
-  <div class="play-prompt" id="play-prompt" onclick="startPlayback()">
-    <div class="play-prompt-btn">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><polygon points="5,3 19,12 5,21"/></svg>
-    </div>
+  <!-- Poster + big play button -->
+  <div class="poster" id="poster" onclick="startPlay()">
+    <div class="play-btn"></div>
   </div>
 
   <div class="controls">
@@ -196,19 +182,36 @@
   const vidBts     = document.getElementById('vid-bts');
   const vidPipBts  = document.getElementById('vid-pip-bts');
   const vidPipMain = document.getElementById('vid-pip-main');
+  const poster     = document.getElementById('poster');
+  const pipPoster  = document.getElementById('pip-poster');
 
   let showingMain = true;
   let isMuted = false;
 
+  // Set sources
   vidMain.src    = MAIN_URL;
   vidBts.src     = BTS_URL;
   vidPipBts.src  = BTS_URL;
   vidPipMain.src = MAIN_URL;
 
+  // Set poster images
+  poster.style.backgroundImage    = `url('${POSTER_URL}')`;
+  pipPoster.style.backgroundImage = `url('${POSTER_URL}')`;
+
+  // ── Start on click ──
+  function startPlay() {
+    poster.classList.add('gone');
+    pipPoster.classList.add('gone');
+    vidMain.play().catch(()=>{});
+  }
+
+  // ── Sync ──
   vidMain.addEventListener('play', () => {
     vidBts.play().catch(()=>{});
     vidPipBts.play().catch(()=>{});
     vidPipMain.play().catch(()=>{});
+    poster.classList.add('gone');
+    pipPoster.classList.add('gone');
     document.getElementById('btn-play').textContent = '⏸';
   });
 
@@ -219,8 +222,8 @@
 
   vidMain.addEventListener('seeked', () => {
     const t = vidMain.currentTime;
-    vidBts.currentTime = t;
-    vidPipBts.currentTime = t;
+    vidBts.currentTime     = t;
+    vidPipBts.currentTime  = t;
     vidPipMain.currentTime = t;
   });
 
@@ -231,19 +234,8 @@
     }
   });
 
-  vidMain.addEventListener('canplay', () => {
-    // Do not autoplay — wait for user click
-  }, { once: true });
-
-  function startPlayback() {
-    document.getElementById('play-prompt').classList.add('gone');
-    vidMain.play().catch(()=>{});
-  }
-    vidMain.play().catch(()=>{});
-  }, { once: true });
-
+  // ── Controls ──
   function togglePlayPause() {
-    document.getElementById('play-prompt').classList.add('gone');
     if (vidMain.paused) { vidMain.play(); } else { vidMain.pause(); }
   }
 
@@ -283,6 +275,7 @@
     return m + ':' + (sec < 10 ? '0' : '') + sec;
   }
 
+  // ── Sprite preview ──
   function scrubPreview(e) {
     if (!vidMain.duration) return;
     const bar    = document.getElementById('scrubber');
@@ -311,6 +304,7 @@
     document.getElementById('preview-bubble').classList.remove('visible');
   }
 
+  // ── Toggle ──
   function toggle() {
     showingMain = !showingMain;
     document.getElementById('layer-main').classList.toggle('hidden', !showingMain);
@@ -325,11 +319,7 @@
     }
   }
 
-  function bigPlayClick() {
-    document.getElementById("big-play").classList.add("gone");
-    vidMain.play();
-  }
-
+  // ── Fullscreen ──
   function toggleFullscreen() {
     const stage = document.getElementById('stage');
     if (!document.fullscreenElement) { stage.requestFullscreen().catch(()=>{}); }
