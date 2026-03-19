@@ -81,6 +81,52 @@
   .pip video.hidden-pip { display:none; }
 
   .upper-shield { position:absolute; top:0; left:0; right:0; height:calc(100% - 80px); z-index:10; cursor:default; }
+
+  .big-play {
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    z-index:25; cursor:pointer;
+    background:rgba(0,0,0,0.25);
+    transition:opacity 0.3s;
+  }
+  .big-play.gone { opacity:0; pointer-events:none; }
+  .big-play-icon {
+    width:72px; height:72px; border-radius:50%;
+    background:rgba(0,0,0,0.55);
+    border:2px solid rgba(200,169,126,0.7);
+    display:flex; align-items:center; justify-content:center;
+    transition:transform 0.2s, border-color 0.2s;
+  }
+  .big-play:hover .big-play-icon { transform:scale(1.1); border-color:#c8a97e; }
+  .big-play-icon::after {
+    content:'';
+    display:block;
+    width:0; height:0;
+    border-style:solid;
+    border-width:14px 0 14px 24px;
+    border-color:transparent transparent transparent #e8e2d9;
+    margin-left:5px;
+  }
+
+  .play-prompt {
+    position:absolute; inset:0; z-index:25;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:opacity 0.4s;
+  }
+  .play-prompt.gone { opacity:0; pointer-events:none; }
+  .play-prompt-btn {
+    width:72px; height:72px; border-radius:50%;
+    background:rgba(0,0,0,0.55);
+    border:2px solid rgba(200,169,126,0.7);
+    display:flex; align-items:center; justify-content:center;
+    transition:background 0.2s, border-color 0.2s, transform 0.2s;
+  }
+  .play-prompt:hover .play-prompt-btn {
+    background:rgba(0,0,0,0.8);
+    border-color:#c8a97e;
+    transform:scale(1.08);
+  }
+  .play-prompt-btn svg { width:28px; height:28px; fill:#c8a97e; margin-left:4px; }
 </style>
 </head>
 <body>
@@ -107,6 +153,14 @@
   </div>
 
   <div class="upper-shield" onclick="togglePlayPause()"></div>
+
+  <div class="big-play" id="big-play" onclick="bigPlayClick()"><div class="big-play-icon"></div></div>
+
+  <div class="play-prompt" id="play-prompt" onclick="startPlayback()">
+    <div class="play-prompt-btn">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><polygon points="5,3 19,12 5,21"/></svg>
+    </div>
+  </div>
 
   <div class="controls">
     <div class="scrubber-row" id="scrubber"
@@ -178,10 +232,18 @@
   });
 
   vidMain.addEventListener('canplay', () => {
+    // Do not autoplay — wait for user click
+  }, { once: true });
+
+  function startPlayback() {
+    document.getElementById('play-prompt').classList.add('gone');
+    vidMain.play().catch(()=>{});
+  }
     vidMain.play().catch(()=>{});
   }, { once: true });
 
   function togglePlayPause() {
+    document.getElementById('play-prompt').classList.add('gone');
     if (vidMain.paused) { vidMain.play(); } else { vidMain.pause(); }
   }
 
@@ -261,6 +323,11 @@
       vidPipMain.classList.remove('hidden-pip');
       vidPipBts.classList.add('hidden-pip');
     }
+  }
+
+  function bigPlayClick() {
+    document.getElementById("big-play").classList.add("gone");
+    vidMain.play();
   }
 
   function toggleFullscreen() {
