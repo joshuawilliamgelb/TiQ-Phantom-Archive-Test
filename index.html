@@ -20,6 +20,12 @@
   }
   .stage:hover .controls { opacity:1; }
 
+  /* Always show controls on touch devices */
+  @media (hover: none) {
+    .controls { opacity:1; }
+    .pip { bottom:80px !important; }
+  }
+
   .scrubber-row {
     position:relative; width:100%; height:18px;
     display:flex; align-items:center; margin-bottom:6px; cursor:pointer;
@@ -77,7 +83,6 @@
   .pip video { width:100%; height:100%; object-fit:cover; pointer-events:none; }
   .pip video.hidden-pip { display:none; }
 
-  /* Poster overlay — shown before play, hidden after */
   .poster {
     position:absolute; inset:0; z-index:25;
     background-size:cover; background-position:center; background-repeat:no-repeat;
@@ -105,7 +110,6 @@
     margin-left:6px;
   }
 
-  /* PiP poster */
   .pip-poster {
     position:absolute; inset:0; z-index:5;
     background-size:cover; background-position:center;
@@ -123,7 +127,7 @@
   const BTS_URL       = 'https://tiq-phantom-archive.b-cdn.net/SYNC%20ARCHIVE%20-%20Bts%20Phantom.mp4';
   const THUMB_MAIN    = 'https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/thumbs-bts.jpg';
   const THUMB_BTS     = 'https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/thumbs-main.jpg';
- const POSTER_URL    = 'https://tiq-phantom-archive.b-cdn.net/watch%20now.png';
+  const POSTER_URL    = 'https://tiq-phantom-archive.b-cdn.net/watch%20now.png';
   const THUMB_INTERVAL = 10;
 </script>
 
@@ -141,9 +145,8 @@
     <div class="pip-poster" id="pip-poster"></div>
   </div>
 
-  <div class="upper-shield" onclick="togglePlayPause()"></div>
+  <div class="upper-shield" onclick="handleShieldTap()"></div>
 
-  <!-- Poster + big play button -->
   <div class="poster" id="poster" onclick="startPlay()">
     <div class="play-btn"></div>
   </div>
@@ -187,22 +190,31 @@
 
   let showingMain = true;
   let isMuted = false;
+  let hasStarted = false;
 
-  // Set sources
   vidMain.src    = MAIN_URL;
   vidBts.src     = BTS_URL;
   vidPipBts.src  = BTS_URL;
   vidPipMain.src = MAIN_URL;
 
-  // Set poster images
   poster.style.backgroundImage    = `url('${POSTER_URL}')`;
   pipPoster.style.backgroundImage = `url('${POSTER_URL}')`;
 
   // ── Start on click ──
   function startPlay() {
+    hasStarted = true;
     poster.classList.add('gone');
     pipPoster.classList.add('gone');
     vidMain.play().catch(()=>{});
+  }
+
+  // ── Shield tap — handles both first play and play/pause ──
+  function handleShieldTap() {
+    if (!hasStarted) {
+      startPlay();
+    } else {
+      togglePlayPause();
+    }
   }
 
   // ── Sync ──
@@ -236,6 +248,7 @@
 
   // ── Controls ──
   function togglePlayPause() {
+    if (!hasStarted) { startPlay(); return; }
     if (vidMain.paused) { vidMain.play(); } else { vidMain.pause(); }
   }
 
@@ -319,11 +332,23 @@
     }
   }
 
-  // ── Fullscreen ──
+  // ── Fullscreen — uses native video fullscreen on iOS ──
   function toggleFullscreen() {
     const stage = document.getElementById('stage');
-    if (!document.fullscreenElement) { stage.requestFullscreen().catch(()=>{}); }
-    else { document.exitFullscreen(); }
+    const currentVid = showingMain ? vidMain : vidBts;
+
+    // iOS Safari — use native video fullscreen
+    if (currentVid.webkitEnterFullscreen) {
+      currentVid.webkitEnterFullscreen();
+      return;
+    }
+
+    // Standard fullscreen for other browsers
+    if (!document.fullscreenElement) {
+      stage.requestFullscreen().catch(()=>{});
+    } else {
+      document.exitFullscreen();
+    }
   }
 </script>
 </body>
