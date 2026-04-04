@@ -20,7 +20,6 @@
   }
   .stage:hover .controls { opacity:1; }
 
-  /* Always show controls on touch devices */
   @media (hover: none) {
     .controls { opacity:1; }
     .pip { bottom:80px !important; }
@@ -200,7 +199,14 @@
   poster.style.backgroundImage    = `url('${POSTER_URL}')`;
   pipPoster.style.backgroundImage = `url('${POSTER_URL}')`;
 
-  // ── Start on click ──
+  // Listen for resize messages from parent
+  window.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'tiq-resize') {
+      document.body.style.width = e.data.width + 'px';
+      document.body.style.height = e.data.height + 'px';
+    }
+  });
+
   function startPlay() {
     hasStarted = true;
     poster.classList.add('gone');
@@ -208,16 +214,10 @@
     vidMain.play().catch(()=>{});
   }
 
-  // ── Shield tap — handles both first play and play/pause ──
   function handleShieldTap() {
-    if (!hasStarted) {
-      startPlay();
-    } else {
-      togglePlayPause();
-    }
+    if (!hasStarted) { startPlay(); } else { togglePlayPause(); }
   }
 
-  // ── Sync ──
   vidMain.addEventListener('play', () => {
     vidBts.play().catch(()=>{});
     vidPipBts.play().catch(()=>{});
@@ -234,8 +234,8 @@
 
   vidMain.addEventListener('seeked', () => {
     const t = vidMain.currentTime;
-    vidBts.currentTime     = t;
-    vidPipBts.currentTime  = t;
+    vidBts.currentTime = t;
+    vidPipBts.currentTime = t;
     vidPipMain.currentTime = t;
   });
 
@@ -246,7 +246,6 @@
     }
   });
 
-  // ── Controls ──
   function togglePlayPause() {
     if (!hasStarted) { startPlay(); return; }
     if (vidMain.paused) { vidMain.play(); } else { vidMain.pause(); }
@@ -288,7 +287,6 @@
     return m + ':' + (sec < 10 ? '0' : '') + sec;
   }
 
-  // ── Sprite preview ──
   function scrubPreview(e) {
     if (!vidMain.duration) return;
     const bar    = document.getElementById('scrubber');
@@ -298,14 +296,11 @@
     const frame  = document.getElementById('preview-frame');
     const bubble = document.getElementById('preview-bubble');
     const label  = document.getElementById('preview-time');
-
     const sprite  = showingMain ? THUMB_MAIN : THUMB_BTS;
     const idx     = Math.floor(t / THUMB_INTERVAL);
     const offsetX = -(idx * 160);
-
     frame.style.backgroundImage    = `url('${sprite}')`;
     frame.style.backgroundPosition = `${offsetX}px 0`;
-
     const rawX     = e.clientX - rect.left;
     const clampedX = Math.max(80, Math.min(rect.width - 80, rawX));
     bubble.style.left = clampedX + 'px';
@@ -317,12 +312,10 @@
     document.getElementById('preview-bubble').classList.remove('visible');
   }
 
-  // ── Toggle ──
   function toggle() {
     showingMain = !showingMain;
     document.getElementById('layer-main').classList.toggle('hidden', !showingMain);
     document.getElementById('layer-bts').classList.toggle('hidden', showingMain);
-
     if (showingMain) {
       vidPipBts.classList.remove('hidden-pip');
       vidPipMain.classList.add('hidden-pip');
@@ -332,30 +325,28 @@
     }
   }
 
-  // ── Fullscreen ──
-let pseudoFullscreen = false;
+  let pseudoFullscreen = false;
 
-function toggleFullscreen() {
-    const isMobile = window.innerWidth <= 768
-    const isEmbedded = window !== window.parent
-    
+  function toggleFullscreen() {
+    const isMobile = window.innerWidth <= 900;
+    const isEmbedded = window !== window.parent;
     if (isEmbedded && isMobile) {
-        if (!pseudoFullscreen) {
-            pseudoFullscreen = true
-            window.parent.postMessage('tiq-fullscreen', '*')
-        } else {
-            pseudoFullscreen = false
-            window.parent.postMessage('tiq-exitfullscreen', '*')
-        }
+      if (!pseudoFullscreen) {
+        pseudoFullscreen = true;
+        window.parent.postMessage('tiq-fullscreen', '*');
+      } else {
+        pseudoFullscreen = false;
+        window.parent.postMessage('tiq-exitfullscreen', '*');
+      }
     } else {
-        const stage = document.getElementById('stage')
-        if (!document.fullscreenElement) {
-            stage.requestFullscreen().catch(() => {})
-        } else {
-            document.exitFullscreen()
-        }
+      const stage = document.getElementById('stage');
+      if (!document.fullscreenElement) {
+        stage.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen();
+      }
     }
-}
+  }
 </script>
 </body>
 </html>
