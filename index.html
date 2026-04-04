@@ -1,361 +1,463 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>TiQ Dual Stream</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background:#000; width:100%; height:100vh; display:flex; align-items:center; justify-content:center; overflow:hidden; }
-  .stage { position:relative; width:100%; max-width:100%; aspect-ratio:16/9; }
-  .layer { position:absolute; inset:0; width:100%; height:100%; }
-  .layer.hidden { opacity:0; pointer-events:none; }
-  video { width:100%; height:100%; display:block; object-fit:contain; }
+import { useState, useRef, useEffect } from "react"
+import { addPropertyControls, ControlType } from "framer"
 
-  .controls {
-    position:absolute; bottom:0; left:0; right:0;
-    padding:0 12px 10px;
-    background:linear-gradient(transparent, rgba(0,0,0,0.85));
-    opacity:0; transition:opacity 0.25s; z-index:20;
-  }
-  .stage:hover .controls { opacity:1; }
+const PLAYER_URL =
+    "https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/"
+const PLAYER_CONTEXT = `Phantom of the Opera was originally live-streamed on CultureHub's interactive Broadcaster platform, where audiences could toggle between the show and a live backstage feed. We are thrilled to have developed this new interactive web player that allows you to watch a recording of Phantom of the Opera as it was originally intended, with the ability to toggle backstage whenever you want.`
+const CREDITS = `Archived from the 11/2/2025 performance.
 
-  /* Always show controls on touch devices */
-  @media (hover: none) {
-    .controls { opacity:1; }
-    .pip { bottom:80px !important; }
-  }
+Co-Created by
+Joshua William Gelb & Normandy Sherwood
+in collaboration with the company
+Commissioned by NYU Skirball
 
-  .scrubber-row {
-    position:relative; width:100%; height:18px;
-    display:flex; align-items:center; margin-bottom:6px; cursor:pointer;
-  }
-  .progress-track {
-    position:absolute; left:0; right:0; height:3px;
-    background:rgba(255,255,255,0.2); border-radius:2px; transition:height 0.15s;
-  }
-  .scrubber-row:hover .progress-track { height:5px; }
-  .progress-fill { height:100%; background:#c8a97e; border-radius:2px; width:0%; pointer-events:none; position:relative; }
-  .progress-thumb {
-    position:absolute; right:-5px; top:50%; transform:translateY(-50%);
-    width:10px; height:10px; background:#c8a97e; border-radius:50%;
-    opacity:0; transition:opacity 0.15s; pointer-events:none;
-  }
-  .scrubber-row:hover .progress-thumb { opacity:1; }
+Performed by
+Sophie Delphis, Erin Amlicke,
+Joshua William Gelb, Curtis Gillen,
+and Jon Levin
 
-  .preview-bubble {
-    position:absolute; bottom:28px; transform:translateX(-50%);
-    display:none; flex-direction:column; align-items:center;
-    pointer-events:none; z-index:30;
-  }
-  .preview-bubble.visible { display:flex; }
-  .preview-frame {
-    width:160px; height:90px;
-    border:1px solid rgba(200,169,126,0.5);
-    background:#000 no-repeat;
-    background-size: auto 90px;
-    display:block; flex-shrink:0;
-  }
-  .preview-time {
-    font-family:monospace; font-size:10px; color:#c8a97e;
-    margin-top:3px; background:rgba(0,0,0,0.7);
-    padding:1px 5px; border-radius:2px;
-  }
+Scenography by Normandy Sherwood
+Sound by Alex Hawthorn
+Mediaturgy by Shoshanah Tarkow
+Direction and Video by Joshua William Gelb
 
-  .controls-row { display:flex; align-items:center; gap:8px; }
-  .btn { background:none; border:none; color:#e8e2d9; cursor:pointer; font-size:15px; padding:2px 4px; flex-shrink:0; opacity:0.85; transition:opacity 0.15s; line-height:1; }
-  .btn:hover { opacity:1; }
-  .time { font-family:monospace; font-size:11px; color:#e8e2d9; opacity:0.65; white-space:nowrap; flex-shrink:0; }
-  .volume-group { display:flex; align-items:center; gap:5px; flex-shrink:0; }
-  .volume-slider { -webkit-appearance:none; appearance:none; width:70px; height:3px; background:rgba(255,255,255,0.25); border-radius:2px; outline:none; cursor:pointer; accent-color:#c8a97e; }
-  .volume-slider::-webkit-slider-thumb { -webkit-appearance:none; width:10px; height:10px; border-radius:50%; background:#c8a97e; cursor:pointer; }
-  .spacer { flex:1; }
+Livestream Powered by CultureHub Broadcaster
 
-  .pip {
-    position:absolute; bottom:12px; right:12px;
-    width:16%; aspect-ratio:16/9; z-index:15; cursor:pointer;
-    overflow:hidden; border:1px solid rgba(200,169,126,0.4);
-    transition:border-color 0.2s, transform 0.2s, bottom 0.25s;
-    background:#000;
-  }
-  .stage:hover .pip { bottom:80px; }
-  .pip:hover { border-color:#c8a97e; transform:scale(1.05); }
-  .pip video { width:100%; height:100%; object-fit:cover; pointer-events:none; }
-  .pip video.hidden-pip { display:none; }
+Produced by Shannon Sindelar
+Assistant Director, Madelyn Barkocy
+Social Media Manager, Kate Purdum
+Production Assistant, Tabby Muhammad
+TiQ Intro Music by Alex Weston`
 
-  .poster {
-    position:absolute; inset:0; z-index:25;
-    background-size:cover; background-position:center; background-repeat:no-repeat;
-    display:flex; align-items:center; justify-content:center;
-    cursor:pointer; transition:opacity 0.4s;
-  }
-  .poster.gone { opacity:0; pointer-events:none; }
-
-  .play-btn {
-    width:72px; height:72px; border-radius:50%;
-    background:rgba(0,0,0,0.55);
-    border:2px solid rgba(200,169,126,0.7);
-    display:flex; align-items:center; justify-content:center;
-    transition:transform 0.2s, border-color 0.2s;
-    flex-shrink:0;
-  }
-  .poster:hover .play-btn { transform:scale(1.1); border-color:#c8a97e; }
-  .play-btn::after {
-    content:'';
-    display:block;
-    width:0; height:0;
-    border-style:solid;
-    border-width:14px 0 14px 24px;
-    border-color:transparent transparent transparent #e8e2d9;
-    margin-left:6px;
-  }
-
-  .pip-poster {
-    position:absolute; inset:0; z-index:5;
-    background-size:cover; background-position:center;
-    transition:opacity 0.4s;
-  }
-  .pip-poster.gone { opacity:0; pointer-events:none; }
-
-  .upper-shield { position:absolute; top:0; left:0; right:0; height:calc(100% - 80px); z-index:10; cursor:default; }
-</style>
-</head>
-<body>
-
-<script>
-  const MAIN_URL      = 'https://tiq-phantom-archive.b-cdn.net/SYNC%20ARCHIVE%20-%20Phantom.mp4';
-  const BTS_URL       = 'https://tiq-phantom-archive.b-cdn.net/SYNC%20ARCHIVE%20-%20Bts%20Phantom.mp4';
-  const THUMB_MAIN    = 'https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/thumbs-bts.jpg';
-  const THUMB_BTS     = 'https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/thumbs-main.jpg';
-  const POSTER_URL    = 'https://tiq-phantom-archive.b-cdn.net/watch%20now.png';
-  const THUMB_INTERVAL = 10;
-</script>
-
-<div class="stage" id="stage">
-  <div class="layer" id="layer-main">
-    <video id="vid-main" preload="none" playsinline></video>
-  </div>
-  <div class="layer hidden" id="layer-bts">
-    <video id="vid-bts" preload="none" playsinline muted></video>
-  </div>
-
-  <div class="pip" id="pip" onclick="toggle()">
-    <video id="vid-pip-bts" muted playsinline></video>
-    <video id="vid-pip-main" muted playsinline class="hidden-pip"></video>
-    <div class="pip-poster" id="pip-poster"></div>
-  </div>
-
-  <div class="upper-shield" onclick="handleShieldTap()"></div>
-
-  <div class="poster" id="poster" onclick="startPlay()">
-    <div class="play-btn"></div>
-  </div>
-
-  <div class="controls">
-    <div class="scrubber-row" id="scrubber"
-         onclick="seek(event)"
-         onmousemove="scrubPreview(event)"
-         onmouseleave="hidePreview()">
-      <div class="progress-track">
-        <div class="progress-fill" id="progress-fill">
-          <div class="progress-thumb"></div>
-        </div>
-      </div>
-      <div class="preview-bubble" id="preview-bubble">
-        <div class="preview-frame" id="preview-frame"></div>
-        <div class="preview-time" id="preview-time">0:00</div>
-      </div>
-    </div>
-    <div class="controls-row">
-      <button class="btn" id="btn-play" onclick="togglePlayPause()">▶</button>
-      <div class="volume-group">
-        <button class="btn" id="btn-mute" onclick="toggleMute()">🔊</button>
-        <input type="range" class="volume-slider" id="volume-slider"
-               min="0" max="1" step="0.02" value="1" oninput="setVolume(this.value)">
-      </div>
-      <div class="time" id="time-display">0:00 / 0:00</div>
-      <div class="spacer"></div>
-      <button class="btn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
-    </div>
-  </div>
-</div>
-
-<script>
-  const vidMain    = document.getElementById('vid-main');
-  const vidBts     = document.getElementById('vid-bts');
-  const vidPipBts  = document.getElementById('vid-pip-bts');
-  const vidPipMain = document.getElementById('vid-pip-main');
-  const poster     = document.getElementById('poster');
-  const pipPoster  = document.getElementById('pip-poster');
-
-  let showingMain = true;
-  let isMuted = false;
-  let hasStarted = false;
-
-  vidMain.src    = MAIN_URL;
-  vidBts.src     = BTS_URL;
-  vidPipBts.src  = BTS_URL;
-  vidPipMain.src = MAIN_URL;
-
-  poster.style.backgroundImage    = `url('${POSTER_URL}')`;
-  pipPoster.style.backgroundImage = `url('${POSTER_URL}')`;
-
-  // ── Start on click ──
-  function startPlay() {
-    hasStarted = true;
-    poster.classList.add('gone');
-    pipPoster.classList.add('gone');
-    vidMain.play().catch(()=>{});
-  }
-
-  // ── Shield tap — handles both first play and play/pause ──
-  function handleShieldTap() {
-    if (!hasStarted) {
-      startPlay();
-    } else {
-      togglePlayPause();
-    }
-  }
-
-  // ── Sync ──
-  vidMain.addEventListener('play', () => {
-    vidBts.play().catch(()=>{});
-    vidPipBts.play().catch(()=>{});
-    vidPipMain.play().catch(()=>{});
-    poster.classList.add('gone');
-    pipPoster.classList.add('gone');
-    document.getElementById('btn-play').textContent = '⏸';
-  });
-
-  vidMain.addEventListener('pause', () => {
-    vidBts.pause(); vidPipBts.pause(); vidPipMain.pause();
-    document.getElementById('btn-play').textContent = '▶';
-  });
-
-  vidMain.addEventListener('seeked', () => {
-    const t = vidMain.currentTime;
-    vidBts.currentTime     = t;
-    vidPipBts.currentTime  = t;
-    vidPipMain.currentTime = t;
-  });
-
-  vidMain.addEventListener('timeupdate', () => {
-    updateProgress();
-    if (Math.abs(vidMain.currentTime - vidBts.currentTime) > 0.5) {
-      vidBts.currentTime = vidMain.currentTime;
-    }
-  });
-
-  // ── Controls ──
-  function togglePlayPause() {
-    if (!hasStarted) { startPlay(); return; }
-    if (vidMain.paused) { vidMain.play(); } else { vidMain.pause(); }
-  }
-
-  function toggleMute() {
-    isMuted = !isMuted;
-    vidMain.muted = isMuted;
-    document.getElementById('btn-mute').textContent = isMuted ? '🔇' : '🔊';
-    document.getElementById('volume-slider').value = isMuted ? 0 : vidMain.volume;
-  }
-
-  function setVolume(val) {
-    vidMain.volume = parseFloat(val);
-    isMuted = (val == 0);
-    vidMain.muted = isMuted;
-    document.getElementById('btn-mute').textContent = isMuted ? '🔇' : '🔊';
-  }
-
-  function seek(e) {
-    const bar  = document.getElementById('scrubber');
-    const rect = bar.getBoundingClientRect();
-    const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    vidMain.currentTime = pct * vidMain.duration;
-  }
-
-  function updateProgress() {
-    if (!vidMain.duration) return;
-    const pct = (vidMain.currentTime / vidMain.duration) * 100;
-    document.getElementById('progress-fill').style.width = pct + '%';
-    document.getElementById('time-display').textContent =
-      fmt(vidMain.currentTime) + ' / ' + fmt(vidMain.duration);
-  }
-
-  function fmt(s) {
-    if (!s || isNaN(s)) return '0:00';
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return m + ':' + (sec < 10 ? '0' : '') + sec;
-  }
-
-  // ── Sprite preview ──
-  function scrubPreview(e) {
-    if (!vidMain.duration) return;
-    const bar    = document.getElementById('scrubber');
-    const rect   = bar.getBoundingClientRect();
-    const pct    = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const t      = pct * vidMain.duration;
-    const frame  = document.getElementById('preview-frame');
-    const bubble = document.getElementById('preview-bubble');
-    const label  = document.getElementById('preview-time');
-
-    const sprite  = showingMain ? THUMB_MAIN : THUMB_BTS;
-    const idx     = Math.floor(t / THUMB_INTERVAL);
-    const offsetX = -(idx * 160);
-
-    frame.style.backgroundImage    = `url('${sprite}')`;
-    frame.style.backgroundPosition = `${offsetX}px 0`;
-
-    const rawX     = e.clientX - rect.left;
-    const clampedX = Math.max(80, Math.min(rect.width - 80, rawX));
-    bubble.style.left = clampedX + 'px';
-    bubble.classList.add('visible');
-    label.textContent = fmt(t);
-  }
-
-  function hidePreview() {
-    document.getElementById('preview-bubble').classList.remove('visible');
-  }
-
-  // ── Toggle ──
-  function toggle() {
-    showingMain = !showingMain;
-    document.getElementById('layer-main').classList.toggle('hidden', !showingMain);
-    document.getElementById('layer-bts').classList.toggle('hidden', showingMain);
-
-    if (showingMain) {
-      vidPipBts.classList.remove('hidden-pip');
-      vidPipMain.classList.add('hidden-pip');
-    } else {
-      vidPipMain.classList.remove('hidden-pip');
-      vidPipBts.classList.add('hidden-pip');
-    }
-  }
-
-  // ── Fullscreen ──
-let pseudoFullscreen = false;
-
-function toggleFullscreen() {
-    const isMobile = window.innerWidth <= 768
-    const isEmbedded = window !== window.parent
-    
-    if (isEmbedded && isMobile) {
-        if (!pseudoFullscreen) {
-            pseudoFullscreen = true
-            window.parent.postMessage('tiq-fullscreen', '*')
-        } else {
-            pseudoFullscreen = false
-            window.parent.postMessage('tiq-exitfullscreen', '*')
-        }
-    } else {
-        const stage = document.getElementById('stage')
-        if (!document.fullscreenElement) {
-            stage.requestFullscreen().catch(() => {})
-        } else {
-            document.exitFullscreen()
-        }
-    }
+const iconButtonStyle: React.CSSProperties = {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "black",
+    padding: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
 }
-</script>
-</body>
-</html>
+
+const XIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+)
+
+const FacebookIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+    </svg>
+)
+
+const ThreadsIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.589 12c.027 3.086.718 5.496 2.057 7.164 1.43 1.781 3.631 2.695 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.102-2.14 1.704-3.73 1.79-1.202.065-2.361-.218-3.259-.801-1.063-.689-1.685-1.74-1.752-2.964-.065-1.19.408-2.285 1.33-3.082.88-.76 2.119-1.207 3.583-1.291a13.853 13.853 0 0 1 3.02.142c-.126-.742-.375-1.332-.75-1.757-.513-.583-1.312-.881-2.379-.889h-.012c-.828 0-1.874.256-2.558 1.515l-1.824-.87c.955-1.794 2.591-2.643 4.382-2.643h.022c3.276.022 5.221 2.035 5.221 5.517v.126a7.87 7.87 0 0 1-.08 1.103c.874.572 1.573 1.292 2.07 2.146 1.023 1.772 1.023 4.146-.669 5.892C17.081 23.386 14.916 23.98 12.186 24z" />
+    </svg>
+)
+
+const EmailIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
+    </svg>
+)
+
+const CopyIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+    </svg>
+)
+
+const PANEL_NAMES = [
+    "Home", "About", "Upcoming", "Phantom",
+    "YouTube", "Hybrids", "Contact", "Donate",
+]
+const PHANTOM_INDEX = 3
+
+function PhantomPlayer() {
+    const [shareOpen, setShareOpen] = useState(false)
+    const [copied, setCopied] = useState(false)
+    const [isFullscreen, setIsFullscreen] = useState(false)
+    const [vpW, setVpW] = useState(0)
+    const [vpH, setVpH] = useState(0)
+    const [vpTop, setVpTop] = useState(0)
+    const [vpLeft, setVpLeft] = useState(0)
+
+    // Track visualViewport
+    useEffect(() => {
+        const update = () => {
+            const vp = window.visualViewport
+            if (vp) {
+                setVpW(vp.width)
+                setVpH(vp.height)
+                setVpTop(vp.offsetTop)
+                setVpLeft(vp.offsetLeft)
+            } else {
+                setVpW(window.innerWidth)
+                setVpH(window.innerHeight)
+                setVpTop(0)
+                setVpLeft(0)
+            }
+        }
+        update()
+        window.visualViewport?.addEventListener("resize", update)
+        window.visualViewport?.addEventListener("scroll", update)
+        window.addEventListener("resize", update)
+        window.addEventListener("orientationchange", () =>
+            setTimeout(update, 150)
+        )
+        return () => {
+            window.visualViewport?.removeEventListener("resize", update)
+            window.visualViewport?.removeEventListener("scroll", update)
+            window.removeEventListener("resize", update)
+            window.removeEventListener("orientationchange", update)
+        }
+    }, [])
+
+    // Listen for postMessage from GitHub player
+    useEffect(() => {
+        const handler = (e: MessageEvent) => {
+            if (e.data === "tiq-fullscreen") {
+                setIsFullscreen(true)
+                // Scroll trick to hide iOS address bar
+                setTimeout(() => {
+                    window.scrollTo(0, 1)
+                    document.documentElement.scrollTop = 1
+                }, 50)
+            }
+            if (e.data === "tiq-exitfullscreen") {
+                setIsFullscreen(false)
+                window.scrollTo(0, 0)
+            }
+        }
+        window.addEventListener("message", handler)
+        return () => window.removeEventListener("message", handler)
+    }, [])
+
+    const shareUrl = typeof window !== "undefined" ? window.location.href : ""
+    const shareText =
+        "Watch Theater in Quarantine's Phantom of the Opera with interactive backstage toggle"
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(shareUrl)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+    }
+
+    const handleReturn = () => {
+        window.history.pushState({}, "", window.location.pathname)
+        window.location.reload()
+    }
+
+    return (
+        <div
+            style={{
+                position: "fixed",
+                inset: 0,
+                background: "black",
+                overflowY: isFullscreen ? "hidden" : "scroll",
+                WebkitOverflowScrolling: "touch",
+                zIndex: 9999,
+            }}
+        >
+            <div
+                style={{
+                    width: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                }}
+            >
+                {/* Top bar — hidden in fullscreen */}
+                {!isFullscreen && (
+                    <div
+                        style={{
+                            display: "flex",
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "12px 16px",
+                            flexShrink: 0,
+                        }}
+                    >
+                        <button
+                            onClick={handleReturn}
+                            style={{
+                                background: "none",
+                                border: "none",
+                                borderBottom: "1px solid white",
+                                color: "white",
+                                fontFamily: "sans-serif",
+                                fontSize: 12,
+                                letterSpacing: "0.08em",
+                                cursor: "pointer",
+                                paddingBottom: "2px",
+                            }}
+                        >
+                            ← Return
+                        </button>
+
+                        <div style={{ position: "relative" }}>
+                            <button
+                                onClick={() => setShareOpen((o) => !o)}
+                                style={{
+                                    background: "none",
+                                    border: "none",
+                                    borderBottom: "1px solid white",
+                                    color: "white",
+                                    fontFamily: "sans-serif",
+                                    fontSize: 12,
+                                    letterSpacing: "0.08em",
+                                    cursor: "pointer",
+                                    paddingBottom: "2px",
+                                }}
+                            >
+                                Share →
+                            </button>
+
+                            {shareOpen && (
+                                <div
+                                    style={{
+                                        position: "absolute",
+                                        top: "calc(100% + 8px)",
+                                        right: 0,
+                                        background: "white",
+                                        padding: "10px 14px",
+                                        display: "flex",
+                                        gap: 16,
+                                        alignItems: "center",
+                                        zIndex: 20,
+                                    }}
+                                >
+                                    <button onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`, "_blank")} style={iconButtonStyle}><XIcon /></button>
+                                    <button onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, "_blank")} style={iconButtonStyle}><FacebookIcon /></button>
+                                    <button onClick={() => window.open(`https://www.threads.net/intent/post?text=${encodeURIComponent(shareText + " " + shareUrl)}`, "_blank")} style={iconButtonStyle}><ThreadsIcon /></button>
+                                    <button onClick={() => window.open(`mailto:?subject=${encodeURIComponent("Theater in Quarantine - Phantom of the Opera")}&body=${encodeURIComponent(shareText + "\n\n" + shareUrl)}`)} style={iconButtonStyle}><EmailIcon /></button>
+                                    <button onClick={handleCopy} style={{ ...iconButtonStyle, fontFamily: "sans-serif", fontSize: 10, gap: 4 }}>
+                                        <CopyIcon />{copied ? "Copied!" : ""}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Player — pseudo-fullscreen when isFullscreen */}
+                <div
+                    style={isFullscreen ? {
+                        position: "fixed",
+                        top: vpTop,
+                        left: vpLeft,
+                        width: vpW || window.innerWidth,
+                        height: vpH || window.innerHeight,
+                        zIndex: 99999,
+                        background: "black",
+                    } : {
+                        width: "100%",
+                        aspectRatio: "16/9",
+                        flexShrink: 0,
+                    }}
+                >
+                    <iframe
+                        src={PLAYER_URL}
+                        style={{
+                            width: "100%",
+                            height: "100%",
+                            border: "none",
+                            display: "block",
+                        }}
+                        allowFullScreen
+                        allow="fullscreen"
+                    />
+                </div>
+
+                {/* Credits — hidden in fullscreen */}
+                {!isFullscreen && (
+                    <div style={{ padding: "20px 20px 120px" }}>
+                        <p style={{
+                            color: "white",
+                            fontFamily: "sans-serif",
+                            fontSize: 13,
+                            lineHeight: 1.6,
+                            marginBottom: 24,
+                        }}>
+                            {PLAYER_CONTEXT}
+                        </p>
+                        <p style={{
+                            color: "rgba(255,255,255,0.6)",
+                            fontFamily: "sans-serif",
+                            fontSize: 11,
+                            lineHeight: 1.8,
+                            whiteSpace: "pre-line",
+                        }}>
+                            {CREDITS}
+                        </p>
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}
+
+export default function MobileStage({
+    slot0, slot1, slot2, slot3,
+    slot4, slot5, slot6, slot7,
+}) {
+    const [activeIndex, setActiveIndex] = useState(0)
+    const [navVisible, setNavVisible] = useState(false)
+    const [labelVisible, setLabelVisible] = useState(false)
+    const [isPlayer, setIsPlayer] = useState(false)
+    const dragStartX = useRef(0)
+    const labelTimer = useRef<any>(null)
+    const slots = [slot0, slot1, slot2, slot3, slot4, slot5, slot6, slot7]
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search)
+        if (params.get("player") === "phantom") setIsPlayer(true)
+    }, [])
+
+    useEffect(() => {
+        const timer = setTimeout(() => setNavVisible(true), 2000)
+        return () => clearTimeout(timer)
+    }, [])
+
+    useEffect(() => {
+        document.body.style.overflow = "hidden"
+        document.documentElement.style.overflow = "hidden"
+        return () => {
+            document.body.style.overflow = ""
+            document.documentElement.style.overflow = ""
+        }
+    }, [])
+
+    const showLabel = () => {
+        setLabelVisible(true)
+        if (labelTimer.current) clearTimeout(labelTimer.current)
+        labelTimer.current = setTimeout(() => setLabelVisible(false), 1500)
+    }
+
+    const goTo = (index: number) => {
+        setActiveIndex(Math.max(0, Math.min(PANEL_NAMES.length - 1, index)))
+        showLabel()
+    }
+
+    const handleStart = (e) => {
+        dragStartX.current = e.touches ? e.touches[0].clientX : e.clientX
+    }
+
+    const handleEnd = (e) => {
+        const endX = e.changedTouches
+            ? e.changedTouches[0].clientX
+            : e.clientX
+        const diff = dragStartX.current - endX
+        if (diff > 50) goTo(activeIndex + 1)
+        else if (diff < -50) goTo(activeIndex - 1)
+    }
+
+    if (isPlayer) return <PhantomPlayer />
+
+    return (
+        <div
+            onTouchStart={handleStart}
+            onTouchEnd={handleEnd}
+            onMouseDown={handleStart}
+            onMouseUp={handleEnd}
+            style={{
+                position: "fixed",
+                top: 0, left: 0,
+                width: "100%",
+                height: "100dvh",
+                background: "black",
+                overflow: "hidden",
+                touchAction: "none",
+            }}
+        >
+            <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+                <div
+                    style={{
+                        position: "absolute",
+                        top: 0, left: 0, bottom: 0,
+                        display: "flex",
+                        width: `${PANEL_NAMES.length * 100}%`,
+                        transform: `translateX(-${activeIndex * (100 / PANEL_NAMES.length)}%)`,
+                        transition: "transform 0.4s ease",
+                    }}
+                >
+                    {slots.map((slot, i) => (
+                        <div
+                            key={i}
+                            onClick={() => {
+                                if (i === PHANTOM_INDEX) {
+                                    window.history.pushState({}, "", "?player=phantom")
+                                    window.location.reload()
+                                }
+                            }}
+                            style={{
+                                flex: "0 0 auto",
+                                width: `${100 / PANEL_NAMES.length}%`,
+                                height: "100%",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                overflow: "hidden",
+                                cursor: i === PHANTOM_INDEX ? "pointer" : "default",
+                            }}
+                        >
+                            {slot}
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Dots + label */}
+            <div
+                style={{
+                    position: "absolute",
+                    top: 36, left: 0, right: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 6,
+                    zIndex: 50,
+                    pointerEvents: "none",
+                }}
+            >
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        gap: 6,
+                        pointerEvents: "auto",
+                        opacity: navVisible ? 1 : 0,
+                        transition: "opacity 0.5s ease",
+                    }}
+                >
+                    {PANEL_NAMES.map((_, i) => (
+                        <div
+                            key={i}
+                            onClick={() => goTo(i)}
+                            style={{
+                                width: i === activeIndex ? 16 : 6,
+                                height: 6,
+                                borderRadius: 3,
+                                background: i === activeIndex
+                                    ? "black"
+                                    : "rgba(0,0,0,0.3)",
+                                cursor: "pointer",
+                                transition: "all 0.3s ease",
+                            }}
+                        />
+                    ))}
+                </div>
+                <span
+                    style={{
+                        fontFamily: "D-DIN Regular, sans-serif",
+                        fontSize: 10,
+                        color: "rgba(0,0,0,0.4)",
+                        letterSpacing: "0.15em",
+                        pointerEvents: "none",
+                        opacity: labelVisible ? 1 : 0,
+                        transition: "opacity 0.4s ease",
+                    }}
+                >
