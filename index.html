@@ -333,19 +333,23 @@
   }
 
   // ── Fullscreen ──
-  function toggleFullscreen() {
-    const stage = document.getElementById('stage');
-    if (!document.fullscreenElement) {
-      stage.requestFullscreen().catch(() => {
-        const currentVid = showingMain ? vidMain : vidBts;
-        if (currentVid.webkitEnterFullscreen) {
-          currentVid.webkitEnterFullscreen();
-        }
-      });
+function toggleFullscreen() {
+    const isMobile = window.innerWidth <= 768
+    const isEmbedded = window !== window.parent
+    
+    if (isEmbedded && isMobile) {
+        // Tell MobileStage to handle fullscreen
+        window.parent.postMessage('tiq-fullscreen', '*')
     } else {
-      document.exitFullscreen();
+        // Desktop — standard fullscreen
+        const stage = document.getElementById('stage')
+        if (!document.fullscreenElement) {
+            stage.requestFullscreen().catch(() => {})
+        } else {
+            document.exitFullscreen()
+        }
     }
-  }
+}
 </script>
 </body>
 </html>
