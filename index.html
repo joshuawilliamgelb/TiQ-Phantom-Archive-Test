@@ -333,15 +333,21 @@
   }
 
   // ── Fullscreen ──
+let pseudoFullscreen = false;
+
 function toggleFullscreen() {
     const isMobile = window.innerWidth <= 768
     const isEmbedded = window !== window.parent
     
     if (isEmbedded && isMobile) {
-        // Tell MobileStage to handle fullscreen
-        window.parent.postMessage('tiq-fullscreen', '*')
+        if (!pseudoFullscreen) {
+            pseudoFullscreen = true
+            window.parent.postMessage('tiq-fullscreen', '*')
+        } else {
+            pseudoFullscreen = false
+            window.parent.postMessage('tiq-exitfullscreen', '*')
+        }
     } else {
-        // Desktop — standard fullscreen
         const stage = document.getElementById('stage')
         if (!document.fullscreenElement) {
             stage.requestFullscreen().catch(() => {})
