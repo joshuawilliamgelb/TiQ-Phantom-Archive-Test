@@ -8,7 +8,6 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { background:#000; width:100%; height:100dvh; display:flex; align-items:center; justify-content:center; overflow:hidden; }
   .stage { position:relative; width:100%; max-width:100%; aspect-ratio:16/9; }
-  .stage.fullscreen-override { aspect-ratio:unset; }
   .layer { position:absolute; inset:0; width:100%; height:100%; }
   .layer.hidden { opacity:0; pointer-events:none; }
   video { width:100%; height:100%; display:block; object-fit:contain; }
@@ -123,11 +122,11 @@
 <body>
 
 <script>
-  const MAIN_URL      = 'https://tiq-phantom-archive.b-cdn.net/SYNC%20ARCHIVE%20-%20Phantom.mp4';
-  const BTS_URL       = 'https://tiq-phantom-archive.b-cdn.net/SYNC%20ARCHIVE%20-%20Bts%20Phantom.mp4';
-  const THUMB_MAIN    = 'https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/thumbs-bts.jpg';
-  const THUMB_BTS     = 'https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/thumbs-main.jpg';
-  const POSTER_URL    = 'https://tiq-phantom-archive.b-cdn.net/watch%20now.png';
+  const MAIN_URL       = 'https://tiq-phantom-archive.b-cdn.net/SYNC%20ARCHIVE%20-%20Phantom.mp4';
+  const BTS_URL        = 'https://tiq-phantom-archive.b-cdn.net/SYNC%20ARCHIVE%20-%20Bts%20Phantom.mp4';
+  const THUMB_MAIN     = 'https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/thumbs-bts.jpg';
+  const THUMB_BTS      = 'https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/thumbs-main.jpg';
+  const POSTER_URL     = 'https://tiq-phantom-archive.b-cdn.net/watch%20now.png';
   const THUMB_INTERVAL = 10;
 </script>
 
@@ -200,20 +199,6 @@
 
   poster.style.backgroundImage    = `url('${POSTER_URL}')`;
   pipPoster.style.backgroundImage = `url('${POSTER_URL}')`;
-
-  // Listen for resize from parent MobileStage
-  window.addEventListener('message', (e) => {
-    if (e.data && e.data.type === 'tiq-resize') {
-      stage.classList.add('fullscreen-override');
-      stage.style.width  = e.data.width + 'px';
-      stage.style.height = e.data.height + 'px';
-    }
-    if (e.data && e.data.type === 'tiq-resize-reset') {
-      stage.classList.remove('fullscreen-override');
-      stage.style.width  = '';
-      stage.style.height = '';
-    }
-  });
 
   function startPlay() {
     hasStarted = true;
@@ -333,22 +318,13 @@
     }
   }
 
-  let pseudoFullscreen = false;
-
   function toggleFullscreen() {
-    const isMobile = window.innerWidth <= 900;
     const isEmbedded = window !== window.parent;
-    if (isEmbedded && isMobile) {
-      if (!pseudoFullscreen) {
-        pseudoFullscreen = true;
-        window.parent.postMessage('tiq-fullscreen', '*');
-      } else {
-        pseudoFullscreen = false;
-        window.parent.postMessage('tiq-exitfullscreen', '*');
-      }
+    if (isEmbedded) {
+      window.open('https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/', '_blank');
     } else {
       if (!document.fullscreenElement) {
-        stage.requestFullscreen().catch(() => {});
+        stage.requestFullscreen().catch(()=>{});
       } else {
         document.exitFullscreen();
       }
