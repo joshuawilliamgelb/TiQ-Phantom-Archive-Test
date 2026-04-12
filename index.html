@@ -321,7 +321,7 @@
   function toggleFullscreen() {
     const isEmbedded = window !== window.parent;
     if (isEmbedded) {
-      window.open('https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/', '_blank');
+      window.parent.postMessage('tiq-fullscreen', '*');
     } else {
       if (!document.fullscreenElement) {
         stage.requestFullscreen().catch(()=>{});
@@ -330,6 +330,23 @@
       }
     }
   }
+
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && window !== window.parent) {
+      window.parent.postMessage('tiq-exitfullscreen', '*');
+    }
+  });
+
+  window.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'tiq-resize') {
+      stage.style.width  = e.data.width  + 'px';
+      stage.style.height = e.data.height + 'px';
+    }
+    if (e.data && e.data.type === 'tiq-resize-reset') {
+      stage.style.width  = '';
+      stage.style.height = '';
+    }
+  });
 </script>
 </body>
 </html>
