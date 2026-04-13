@@ -28,6 +28,7 @@
   .scrubber-row {
     position:relative; width:100%; height:18px;
     display:flex; align-items:center; margin-bottom:6px; cursor:pointer;
+    touch-action: none;
   }
   .progress-track {
     position:absolute; left:0; right:0; height:3px;
@@ -41,6 +42,7 @@
     opacity:0; transition:opacity 0.15s; pointer-events:none;
   }
   .scrubber-row:hover .progress-thumb { opacity:1; }
+  .scrubber-row.scrubbing .progress-thumb { opacity:1; }
 
   .preview-bubble {
     position:absolute; bottom:28px; transform:translateX(-50%);
@@ -66,8 +68,16 @@
   .btn:hover { opacity:1; }
   .time { font-family:monospace; font-size:11px; color:#e8e2d9; opacity:0.65; white-space:nowrap; flex-shrink:0; }
   .volume-group { display:flex; align-items:center; gap:5px; flex-shrink:0; }
-  .volume-slider { -webkit-appearance:none; appearance:none; width:70px; height:3px; background:rgba(255,255,255,0.25); border-radius:2px; outline:none; cursor:pointer; accent-color:#c8a97e; }
-  .volume-slider::-webkit-slider-thumb { -webkit-appearance:none; width:10px; height:10px; border-radius:50%; background:#c8a97e; cursor:pointer; }
+  .volume-slider {
+    -webkit-appearance:none; appearance:none;
+    width:70px; height:3px;
+    background:rgba(255,255,255,0.25); border-radius:2px;
+    outline:none; cursor:pointer; accent-color:#c8a97e;
+  }
+  .volume-slider::-webkit-slider-thumb {
+    -webkit-appearance:none; width:10px; height:10px;
+    border-radius:50%; background:#c8a97e; cursor:pointer;
+  }
   .spacer { flex:1; }
 
   .pip {
@@ -117,11 +127,18 @@
   .pip-poster.gone { opacity:0; pointer-events:none; }
 
   .upper-shield { position:absolute; top:0; left:0; right:0; height:calc(100% - 80px); z-index:10; cursor:default; }
+
+  #exit-btn {
+    display:none; position:fixed; top:12px; left:12px; z-index:9999;
+    background:none; border:none; border-bottom:1px solid white;
+    color:white; font-family:sans-serif; font-size:12px;
+    letter-spacing:0.08em; cursor:pointer; padding-bottom:2px;
+  }
 </style>
 </head>
 <body>
 
-<button id="exit-btn" onclick="exitEmbedded()" style="display:none; position:fixed; top:12px; left:12px; z-index:9999; background:none; border:none; border-bottom:1px solid white; color:white; font-family:sans-serif; font-size:12px; letter-spacing:0.08em; cursor:pointer; padding-bottom:2px;">← Return</button>
+<button id="exit-btn" onclick="exitEmbedded()">← Return</button>
 
 <script>
   const MAIN_URL       = 'https://tiq-phantom-archive.b-cdn.net/SYNC%20ARCHIVE%20-%20Phantom.mp4';
@@ -153,10 +170,7 @@
   </div>
 
   <div class="controls">
-    <div class="scrubber-row" id="scrubber"
-         onclick="seek(event)"
-         onmousemove="scrubPreview(event)"
-         onmouseleave="hidePreview()">
+    <div class="scrubber-row" id="scrubber">
       <div class="progress-track">
         <div class="progress-fill" id="progress-fill">
           <div class="progress-thumb"></div>
@@ -189,10 +203,13 @@
   const poster     = document.getElementById('poster');
   const pipPoster  = document.getElementById('pip-poster');
   const stage      = document.getElementById('stage');
+  const scrubber   = document.getElementById('scrubber');
+  const volSlider  = document.getElementById('volume-slider');
 
   let showingMain = true;
   let isMuted = false;
   let hasStarted = false;
+  let isScrubbing = false;
 
   vidMain.src    = MAIN_URL;
   vidBts.src     = BTS_URL;
@@ -241,6 +258,13 @@
     }
   });
 
+  // Volume sync
+  vidMain.addEventListener('volumechange', () => {
+    if (!isMuted) {
+      volSlider.value = vidMain.volume;
+    }
+  });
+
   function togglePlayPause() {
     if (!hasStarted) { startPlay(); return; }
     if (vidMain.paused) { vidMain.play(); } else { vidMain.pause(); }
@@ -250,21 +274,88 @@
     isMuted = !isMuted;
     vidMain.muted = isMuted;
     document.getElementById('btn-mute').textContent = isMuted ? '🔇' : '🔊';
-    document.getElementById('volume-slider').value = isMuted ? 0 : vidMain.volume;
+    volSlider.value = isMuted ? 0 : vidMain.volume;
   }
 
   function setVolume(val) {
-    vidMain.volume = parseFloat(val);
-    isMuted = (val == 0);
+    const v = parseFloat(val);
+    vidMain.volume = v;
+    isMuted = (v === 0);
     vidMain.muted = isMuted;
     document.getElementById('btn-mute').textContent = isMuted ? '🔇' : '🔊';
   }
 
-  function seek(e) {
-    const bar  = document.getElementById('scrubber');
-    const rect = bar.getBoundingClientRect();
-    const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    vidMain.currentTime = pct * vidMain.duration;
+  // Scrubber — mouse
+  scrubber.addEventListener('mousedown', (e) => {
+    isScrubbing = true;
+    scrubber.classList.add('scrubbing');
+    seekFromEvent(e.clientX);
+    showPreview(e.clientX);
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isScrubbing) return;
+    seekFromEvent(e.clientX);
+    showPreview(e.clientX);
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!isScrubbing) return;
+    isScrubbing = false;
+    scrubber.classList.remove('scrubbing');
+    hidePreview();
+  });
+
+  // Scrubber — touch
+  scrubber.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    isScrubbing = true;
+    scrubber.classList.add('scrubbing');
+    seekFromEvent(e.touches[0].clientX);
+    showPreview(e.touches[0].clientX);
+  }, { passive: false });
+
+  scrubber.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!isScrubbing) return;
+    seekFromEvent(e.touches[0].clientX);
+    showPreview(e.touches[0].clientX);
+  }, { passive: false });
+
+  scrubber.addEventListener('touchend', () => {
+    isScrubbing = false;
+    scrubber.classList.remove('scrubbing');
+    hidePreview();
+  });
+
+  function seekFromEvent(clientX) {
+    const rect = scrubber.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    if (vidMain.duration) vidMain.currentTime = pct * vidMain.duration;
+  }
+
+  function showPreview(clientX) {
+    if (!vidMain.duration) return;
+    const rect    = scrubber.getBoundingClientRect();
+    const pct     = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const t       = pct * vidMain.duration;
+    const frame   = document.getElementById('preview-frame');
+    const bubble  = document.getElementById('preview-bubble');
+    const label   = document.getElementById('preview-time');
+    const sprite  = showingMain ? THUMB_MAIN : THUMB_BTS;
+    const idx     = Math.floor(t / THUMB_INTERVAL);
+    const offsetX = -(idx * 160);
+    frame.style.backgroundImage    = `url('${sprite}')`;
+    frame.style.backgroundPosition = `${offsetX}px 0`;
+    const rawX     = clientX - rect.left;
+    const clampedX = Math.max(80, Math.min(rect.width - 80, rawX));
+    bubble.style.left = clampedX + 'px';
+    bubble.classList.add('visible');
+    label.textContent = fmt(t);
+  }
+
+  function hidePreview() {
+    document.getElementById('preview-bubble').classList.remove('visible');
   }
 
   function updateProgress() {
@@ -280,31 +371,6 @@
     const m = Math.floor(s / 60);
     const sec = Math.floor(s % 60);
     return m + ':' + (sec < 10 ? '0' : '') + sec;
-  }
-
-  function scrubPreview(e) {
-    if (!vidMain.duration) return;
-    const bar    = document.getElementById('scrubber');
-    const rect   = bar.getBoundingClientRect();
-    const pct    = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const t      = pct * vidMain.duration;
-    const frame  = document.getElementById('preview-frame');
-    const bubble = document.getElementById('preview-bubble');
-    const label  = document.getElementById('preview-time');
-    const sprite  = showingMain ? THUMB_MAIN : THUMB_BTS;
-    const idx     = Math.floor(t / THUMB_INTERVAL);
-    const offsetX = -(idx * 160);
-    frame.style.backgroundImage    = `url('${sprite}')`;
-    frame.style.backgroundPosition = `${offsetX}px 0`;
-    const rawX     = e.clientX - rect.left;
-    const clampedX = Math.max(80, Math.min(rect.width - 80, rawX));
-    bubble.style.left = clampedX + 'px';
-    bubble.classList.add('visible');
-    label.textContent = fmt(t);
-  }
-
-  function hidePreview() {
-    document.getElementById('preview-bubble').classList.remove('visible');
   }
 
   function toggle() {
