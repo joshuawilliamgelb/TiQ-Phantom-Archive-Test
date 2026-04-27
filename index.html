@@ -11,16 +11,6 @@
   .layer { position:absolute; inset:0; width:100%; height:100%; }
   .layer.hidden { opacity:0; pointer-events:none; }
   video { width:100%; height:100%; display:block; object-fit:contain; }
-  video::cue {
-    font-family: 'Inconsolata', monospace;
-    font-size: 0.8em;
-    font-weight: 300;
-    background: rgba(0,0,0,0.7);
-    color: #fff;
-  }
-  video::-webkit-media-text-track-container {
-    bottom: 18% !important;
-  }
 
   .controls {
     position:absolute; bottom:0; left:0; right:0;
@@ -138,6 +128,31 @@
 
   .upper-shield { position:absolute; top:0; left:0; right:0; height:calc(100% - 80px); z-index:10; cursor:default; }
 
+  /* Custom subtitle overlay */
+  .subtitle-overlay {
+    position:absolute;
+    bottom:14%;
+    left:5%; right:22%; /* right margin keeps clear of PiP */
+    text-align:center;
+    pointer-events:none;
+    z-index:18;
+    transition:opacity 0.15s;
+  }
+  .subtitle-overlay.hidden { opacity:0; }
+  .subtitle-overlay span {
+    display:inline-block;
+    background:rgba(0,0,0,0.72);
+    color:#fff;
+    font-family:'D-DIN Condensed', 'Arial Narrow', sans-serif;
+    font-size:clamp(10px, 1.6vw, 18px);
+    font-weight:400;
+    letter-spacing:0.02em;
+    line-height:1.35;
+    padding:3px 10px 4px;
+    white-space:pre-wrap;
+    text-align:center;
+  }
+
   #exit-btn {
     display:none; position:fixed; top:12px; left:12px; z-index:9999;
     background:none; border:none; border-bottom:1px solid white;
@@ -145,6 +160,8 @@
     letter-spacing:0.08em; cursor:pointer; padding-bottom:2px;
   }
 </style>
+<!-- D-DIN Condensed via Adobe Fonts / fallback to system narrow -->
+<link rel="stylesheet" href="https://use.typekit.net/646866.css">
 </head>
 <body>
 
@@ -156,20 +173,20 @@
   const THUMB_MAIN     = 'https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/thumbs-bts.jpg';
   const THUMB_BTS      = 'https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/thumbs-main.jpg';
   const POSTER_URL     = 'https://tiq-phantom-archive.b-cdn.net/watch%20now.png';
+  const VTT_URL        = 'https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/captions-edited.vtt';
   const THUMB_INTERVAL = 10;
 </script>
 
 <div class="stage" id="stage">
   <div class="layer" id="layer-main">
-    <video id="vid-main" preload="none" playsinline>
-  <track kind="subtitles" src="https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/captions-edited.vtt" srclang="en" label="English" default>
-</video>
+    <video id="vid-main" preload="none" playsinline></video>
   </div>
   <div class="layer hidden" id="layer-bts">
- <video id="vid-bts" preload="none" playsinline muted>
-  <track kind="subtitles" src="https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/captions-edited.vtt" srclang="en" label="English" default>
-</video>
+    <video id="vid-bts" preload="none" playsinline muted></video>
   </div>
+
+  <!-- Custom subtitle overlay -->
+  <div class="subtitle-overlay hidden" id="sub-overlay"><span id="sub-text"></span></div>
 
   <div class="pip" id="pip" onclick="toggle()">
     <video id="vid-pip-bts" muted playsinline></video>
@@ -204,8 +221,8 @@
       </div>
       <div class="time" id="time-display">0:00 / 0:00</div>
       <div class="spacer"></div>
-     <button class="btn" id="btn-sub" onclick="toggleSubs()" title="Subtitles">CC</button>
-     <button class="btn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
+      <button class="btn" id="btn-sub" onclick="toggleSubs()" title="Subtitles" style="opacity:0.35;">CC</button>
+      <a class="btn" href="https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/" target="_blank" title="Open Fullscreen" style="text-decoration:none;">⛶</a>
     </div>
   </div>
 </div>
@@ -220,11 +237,15 @@
   const stage      = document.getElementById('stage');
   const scrubber   = document.getElementById('scrubber');
   const volSlider  = document.getElementById('volume-slider');
+  const subOverlay = document.getElementById('sub-overlay');
+  const subText    = document.getElementById('sub-text');
 
-  let showingMain = true;
-  let isMuted = false;
-  let hasStarted = false;
-  let isScrubbing = false;
+  let showingMain  = true;
+  let isMuted      = false;
+  let hasStarted   = false;
+  let isScrubbing  = false;
+  let subsVisible  = false;
+  let vttCues      = []; // { start, end, text }
 
   vidMain.src    = MAIN_URL;
   vidBts.src     = BTS_URL;
@@ -234,6 +255,62 @@
   poster.style.backgroundImage    = `url('${POSTER_URL}')`;
   pipPoster.style.backgroundImage = `url('${POSTER_URL}')`;
 
+  // ── Load & parse VTT ──
+  fetch(VTT_URL)
+    .then(r => r.text())
+    .then(text => { vttCues = parseVTT(text); })
+    .catch(() => {});
+
+  function parseVTT(text) {
+    const cues = [];
+    const lines = text.split('\n');
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i].trim();
+      if (line.includes('-->')) {
+        const [startRaw, endRaw] = line.split('-->').map(s => s.trim());
+        const start = tsToSec(startRaw), end = tsToSec(endRaw);
+        i++;
+        const textLines = [];
+        while (i < lines.length && lines[i].trim() !== '' && !lines[i].includes('-->')) {
+          // Strip VTT tags like <c>, <i> etc
+          textLines.push(lines[i].trim().replace(/<[^>]+>/g, ''));
+          i++;
+        }
+        if (textLines.length) cues.push({ start, end, text: textLines.join('\n') });
+      } else { i++; }
+    }
+    return cues;
+  }
+
+  function tsToSec(ts) {
+    ts = ts.trim().replace(',', '.');
+    const parts = ts.split(':').map(Number);
+    if (parts.length === 3) return parts[0]*3600 + parts[1]*60 + parts[2];
+    if (parts.length === 2) return parts[0]*60 + parts[1];
+    return parts[0];
+  }
+
+  // ── Subtitle display ──
+  function updateSubs(t) {
+    if (!subsVisible) return;
+    const cue = vttCues.find(c => t >= c.start && t <= c.end);
+    if (cue) {
+      subText.textContent = cue.text;
+      subOverlay.classList.remove('hidden');
+    } else {
+      subOverlay.classList.add('hidden');
+    }
+  }
+
+  function toggleSubs() {
+    subsVisible = !subsVisible;
+    const btn = document.getElementById('btn-sub');
+    btn.style.opacity = subsVisible ? '1' : '0.35';
+    if (!subsVisible) subOverlay.classList.add('hidden');
+  }
+
+  // ── Playback ──
   function startPlay() {
     hasStarted = true;
     poster.classList.add('gone');
@@ -268,16 +345,14 @@
 
   vidMain.addEventListener('timeupdate', () => {
     updateProgress();
+    updateSubs(vidMain.currentTime);
     if (Math.abs(vidMain.currentTime - vidBts.currentTime) > 0.5) {
       vidBts.currentTime = vidMain.currentTime;
     }
   });
 
-  // Volume sync
   vidMain.addEventListener('volumechange', () => {
-    if (!isMuted) {
-      volSlider.value = vidMain.volume;
-    }
+    if (!isMuted) volSlider.value = vidMain.volume;
   });
 
   function togglePlayPause() {
@@ -300,47 +375,27 @@
     document.getElementById('btn-mute').textContent = isMuted ? '🔇' : '🔊';
   }
 
-  // Scrubber — mouse
+  // ── Scrubber ──
   scrubber.addEventListener('mousedown', (e) => {
-    isScrubbing = true;
-    scrubber.classList.add('scrubbing');
-    seekFromEvent(e.clientX);
-    showPreview(e.clientX);
+    isScrubbing = true; scrubber.classList.add('scrubbing');
+    seekFromEvent(e.clientX); showPreview(e.clientX);
   });
-
   document.addEventListener('mousemove', (e) => {
-    if (!isScrubbing) return;
-    seekFromEvent(e.clientX);
-    showPreview(e.clientX);
+    if (!isScrubbing) return; seekFromEvent(e.clientX); showPreview(e.clientX);
   });
-
   document.addEventListener('mouseup', () => {
-    if (!isScrubbing) return;
-    isScrubbing = false;
-    scrubber.classList.remove('scrubbing');
-    hidePreview();
+    if (!isScrubbing) return; isScrubbing = false; scrubber.classList.remove('scrubbing'); hidePreview();
   });
-
-  // Scrubber — touch
   scrubber.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    isScrubbing = true;
-    scrubber.classList.add('scrubbing');
-    seekFromEvent(e.touches[0].clientX);
-    showPreview(e.touches[0].clientX);
+    e.preventDefault(); isScrubbing = true; scrubber.classList.add('scrubbing');
+    seekFromEvent(e.touches[0].clientX); showPreview(e.touches[0].clientX);
   }, { passive: false });
-
   scrubber.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    if (!isScrubbing) return;
-    seekFromEvent(e.touches[0].clientX);
-    showPreview(e.touches[0].clientX);
+    e.preventDefault(); if (!isScrubbing) return;
+    seekFromEvent(e.touches[0].clientX); showPreview(e.touches[0].clientX);
   }, { passive: false });
-
   scrubber.addEventListener('touchend', () => {
-    isScrubbing = false;
-    scrubber.classList.remove('scrubbing');
-    hidePreview();
+    isScrubbing = false; scrubber.classList.remove('scrubbing'); hidePreview();
   });
 
   function seekFromEvent(clientX) {
@@ -388,6 +443,7 @@
     return m + ':' + (sec < 10 ? '0' : '') + sec;
   }
 
+  // ── Toggle view ──
   function toggle() {
     showingMain = !showingMain;
     document.getElementById('layer-main').classList.toggle('hidden', !showingMain);
@@ -400,25 +456,15 @@
       vidPipBts.classList.add('hidden-pip');
     }
   }
-function toggleSubs() {
-    const tracks = [vidMain.textTracks[0], vidBts.textTracks[0]];
-    const btn = document.getElementById('btn-sub');
-    const showing = tracks[0] && tracks[0].mode === 'showing';
-    tracks.forEach(t => { if (t) t.mode = showing ? 'hidden' : 'showing'; });
-    btn.style.opacity = showing ? '0.35' : '1';
- 
-  }
+
+  // ── Fullscreen ──
   function toggleFullscreen() {
     const isEmbedded = window !== window.parent;
     if (isEmbedded) {
-      window.parent.postMessage('tiq-fullscreen', '*');
-      document.getElementById('exit-btn').style.display = 'block';
+      window.open('https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/', '_blank');
     } else {
-      if (!document.fullscreenElement) {
-        stage.requestFullscreen().catch(()=>{});
-      } else {
-        document.exitFullscreen();
-      }
+      if (!document.fullscreenElement) { stage.requestFullscreen().catch(()=>{}); }
+      else { document.exitFullscreen(); }
     }
   }
 
@@ -426,12 +472,6 @@ function toggleSubs() {
     document.getElementById('exit-btn').style.display = 'none';
     window.parent.postMessage('tiq-exitfullscreen', '*');
   }
-
-  document.addEventListener('fullscreenchange', () => {
-    if (!document.fullscreenElement && window !== window.parent) {
-      window.parent.postMessage('tiq-exitfullscreen', '*');
-    }
-  });
 
   window.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'tiq-resize') {
