@@ -151,7 +151,9 @@
 
 <div class="stage" id="stage">
   <div class="layer" id="layer-main">
-    <video id="vid-main" preload="none" playsinline></video>
+    <video id="vid-main" preload="none" playsinline>
+  <track kind="subtitles" src="https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/captions-edited.vtt" srclang="en" label="English" default>
+</video>
   </div>
   <div class="layer hidden" id="layer-bts">
     <video id="vid-bts" preload="none" playsinline muted></video>
@@ -190,7 +192,8 @@
       </div>
       <div class="time" id="time-display">0:00 / 0:00</div>
       <div class="spacer"></div>
-      <button class="btn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
+     <button class="btn" id="btn-sub" onclick="toggleSubs()" title="Subtitles">CC</button>
+     <button class="btn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
     </div>
   </div>
 </div>
@@ -385,7 +388,18 @@
       vidPipBts.classList.add('hidden-pip');
     }
   }
-
+function toggleSubs() {
+    const track = vidMain.textTracks[0];
+    if (!track) return;
+    const btn = document.getElementById('btn-sub');
+    if (track.mode === 'showing') {
+      track.mode = 'hidden';
+      btn.style.opacity = '0.35';
+    } else {
+      track.mode = 'showing';
+      btn.style.opacity = '1';
+    }
+  }
   function toggleFullscreen() {
     const isEmbedded = window !== window.parent;
     if (isEmbedded) {
