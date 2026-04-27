@@ -377,6 +377,13 @@
     isScrubbing = true; scrubber.classList.add('scrubbing');
     seekFromEvent(e.clientX); showPreview(e.clientX);
   });
+ scrubber.addEventListener('mousemove', (e) => {
+    if (isScrubbing) return;
+    showPreview(e.clientX);
+  });
+  scrubber.addEventListener('mouseleave', () => {
+    if (!isScrubbing) hidePreview();
+  });
   document.addEventListener('mousemove', (e) => {
     if (!isScrubbing) return; seekFromEvent(e.clientX); showPreview(e.clientX);
   });
