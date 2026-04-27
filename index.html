@@ -462,11 +462,19 @@
   }
 
   // ── Fullscreen ──
-  function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-      stage.requestFullscreen().catch(()=>{});
+function toggleFullscreen() {
+    const isEmbedded = window !== window.parent;
+    const isMobile = window.innerWidth <= 768;
+    
+    if (isEmbedded && isMobile) {
+      window.parent.postMessage('tiq-fullscreen', '*');
     } else {
-      document.exitFullscreen();
+      if (!document.fullscreenElement) {
+        stage.requestFullscreen().catch(()=>{});
+      } else {
+        document.exitFullscreen();
+        if (isEmbedded) window.parent.postMessage('tiq-exitfullscreen', '*');
+      }
     }
   }
 
