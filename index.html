@@ -396,7 +396,7 @@ function toggleSubs() {
     const showing = tracks[0] && tracks[0].mode === 'showing';
     tracks.forEach(t => { if (t) t.mode = showing ? 'hidden' : 'showing'; });
     btn.style.opacity = showing ? '0.35' : '1';
-  }
+ 
   }
   function toggleFullscreen() {
     const isEmbedded = window !== window.parent;
