@@ -156,7 +156,9 @@
 </video>
   </div>
   <div class="layer hidden" id="layer-bts">
-    <video id="vid-bts" preload="none" playsinline muted></video>
+ <video id="vid-bts" preload="none" playsinline muted>
+  <track kind="subtitles" src="https://joshuawilliamgelb.github.io/TiQ-Phantom-Archive-Test/captions-edited.vtt" srclang="en" label="English" default>
+</video>
   </div>
 
   <div class="pip" id="pip" onclick="toggle()">
@@ -389,16 +391,12 @@
     }
   }
 function toggleSubs() {
-    const track = vidMain.textTracks[0];
-    if (!track) return;
+    const tracks = [vidMain.textTracks[0], vidBts.textTracks[0]];
     const btn = document.getElementById('btn-sub');
-    if (track.mode === 'showing') {
-      track.mode = 'hidden';
-      btn.style.opacity = '0.35';
-    } else {
-      track.mode = 'showing';
-      btn.style.opacity = '1';
-    }
+    const showing = tracks[0] && tracks[0].mode === 'showing';
+    tracks.forEach(t => { if (t) t.mode = showing ? 'hidden' : 'showing'; });
+    btn.style.opacity = showing ? '0.35' : '1';
+  }
   }
   function toggleFullscreen() {
     const isEmbedded = window !== window.parent;
