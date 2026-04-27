@@ -572,9 +572,19 @@
         if (e.target.classList.contains('cue-ts') ||
             e.target.classList.contains('cue-text-input') ||
             e.target.classList.contains('cue-del')) return;
-        if (e.shiftKey) {
-          selectedIds.has(cue.id) ? selectedIds.delete(cue.id) : selectedIds.add(cue.id);
-        } else {
+        if (e.shiftKey && selectedIds.size > 0) {
+  // Find range between last selected and this one
+  const lastSelectedId = [...selectedIds].pop();
+  const lastIdx = cues.findIndex(c => c.id === lastSelectedId);
+  const thisIdx = cues.findIndex(c => c.id === cue.id);
+  const from = Math.min(lastIdx, thisIdx);
+  const to   = Math.max(lastIdx, thisIdx);
+  for (let i = from; i <= to; i++) {
+    selectedIds.add(cues[i].id);
+  }
+} else if (e.shiftKey) {
+  selectedIds.add(cue.id);
+} else {
           selectedIds.clear();
           selectedIds.add(cue.id);
           vid.currentTime = cue.start;
