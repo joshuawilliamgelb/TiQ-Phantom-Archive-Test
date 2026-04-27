@@ -736,20 +736,22 @@
         activeCueId = active.id;
         renderList();
         scrollActiveCueIntoView();
-        drawTimeline();
       }
     } else {
       subEl.textContent = '';
       if (activeCueId !== null) {
         activeCueId = null;
         renderList();
-        drawTimeline();
       }
     }
-
-    // Scroll timeline playhead
-    drawTimeline();
   });
+
+  // Separate RAF loop for playhead — doesn't block clicks
+  function animatePlayhead() {
+    drawTimeline();
+    requestAnimationFrame(animatePlayhead);
+  }
+  requestAnimationFrame(animatePlayhead);
 
   // ── Timeline ──
   const TIMELINE_H = 80;
@@ -976,7 +978,27 @@
   // ── Init ──
   vid.addEventListener('loadedmetadata', () => { drawTimeline(); setStatus('Video loaded — ' + toVTTts(vid.duration)); });
   window.addEventListener('resize', drawTimeline);
-  drawTimeline();
+ setInterval(() => {
+    if (cues.length > 0) {
+      localStorage.setItem('tiq-cues-backup', JSON.stringify(cues));
+    }
+  }, 30000);
+
+  // Restore on load
+  const backup = localStorage.getItem('tiq-cues-backup');
+  if (backup) {
+    try {
+      const restored = JSON.parse(backup);
+      if (restored.length > 0 && confirm('Restore ' + restored.length + ' cues from last session?')) {
+        cues = restored;
+        nextId = Math.max(...cues.map(c => c.id)) + 1;
+        renderList();
+        drawTimeline();
+        setStatus('Restored ' + cues.length + ' cues from backup');
+      }
+    } catch(e) {}
+  } 
+ drawTimeline();
 </script>
 </body>
 </html>
