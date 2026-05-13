@@ -647,7 +647,6 @@ function renderBlockEls(defFont, defSize, defLine, defLetter, dtc) {
         'white-space:pre-wrap',
         'word-break:break-word',
       ].join(';');
-      // Render content as HTML so <a> tags work; newlines → <br>
       el.innerHTML = (b.content || '').replace(/\n/g, '<br>');
     }
     else if (b.type === 'spacer') {
@@ -782,20 +781,7 @@ function buildEditor(b) {
     const ls = b.letterS ?? defLetter;
     ed.innerHTML = `
       <span class="lbl">Content</span>
-      <textarea id="e-content" rows="4" style="font-family:monospace;font-size:11px;">${esc(b.content || '')}</textarea>
-      <div style="margin-top:5px;">
-        <button id="e-linkbtn" class="add-btn" style="width:100%;text-align:center;padding:6px;">
-          🔗 Link selected text
-        </button>
-        <div id="e-linkrow" style="display:none;margin-top:5px;display:none;">
-          <input type="url" id="e-linkurl" placeholder="https://…" style="margin-bottom:4px;">
-          <div style="display:flex;gap:6px;">
-            <button id="e-linkconfirm" class="add-btn" style="flex:1;text-align:center;">Apply</button>
-            <button id="e-linkcancel" class="add-btn" style="flex:1;text-align:center;">Cancel</button>
-          </div>
-        </div>
-        <div class="info" style="margin-top:4px;">Select text above, click Link, paste URL.</div>
-      </div>
+      <textarea id="e-content" rows="4">${esc(b.content || '')}</textarea>
       <div style="display:flex;gap:14px;margin-top:6px;">
         <label class="chk-row"><input type="checkbox" id="e-bold" ${b.bold ? 'checked' : ''}> Bold</label>
         <label class="chk-row"><input type="checkbox" id="e-italic" ${b.italic ? 'checked' : ''}> Italic</label>
@@ -833,32 +819,6 @@ function buildEditor(b) {
       const el = $(id);
       if (el) el.addEventListener(el.tagName === 'TEXTAREA' || el.type === 'text' ? 'input' : 'change', wire);
       if (el && el.type === 'range') el.addEventListener('input', wire);
-    });
-
-    // Link button — wraps selected text in <a href="">
-    $('e-linkbtn').addEventListener('click', () => {
-      const row = $('e-linkrow');
-      row.style.display = row.style.display === 'none' ? 'block' : 'none';
-      if (row.style.display === 'block') $('e-linkurl').focus();
-    });
-    $('e-linkcancel').addEventListener('click', () => {
-      $('e-linkrow').style.display = 'none';
-      $('e-linkurl').value = '';
-    });
-    $('e-linkconfirm').addEventListener('click', () => {
-      const ta = $('e-content');
-      const url = $('e-linkurl').value.trim();
-      if (!url) return;
-      const start = ta.selectionStart;
-      const end   = ta.selectionEnd;
-      const selected = ta.value.slice(start, end);
-      if (!selected) { alert('Select some text first, then click Apply.'); return; }
-      const linkHTML = `<a href="${url}" style="color:#cc0000;">${selected}</a>`;
-      ta.value = ta.value.slice(0, start) + linkHTML + ta.value.slice(end);
-      b.content = ta.value;
-      $('e-linkrow').style.display = 'none';
-      $('e-linkurl').value = '';
-      go();
     });
   }
   else if (b.type === 'spacer') {
@@ -1158,7 +1118,7 @@ function exportHTML() {
     const col = b.color || dtc;
 
     if (b.type === 'text') {
-      const text = (b.content || '').replace(/\n/g,'<br>');
+      const text = (b.content || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>');
       return `  <p style="margin:0;padding:0;font-family:${ff};font-size:${b.size||ds}px;font-weight:${b.bold?700:400};font-style:${b.italic?'italic':'normal'};text-align:${b.align||'center'};color:${col};line-height:${lh};letter-spacing:${ls};">${text}</p>`;
     }
     if (b.type === 'spacer') return `  <div style="height:${b.h}px;line-height:0;font-size:0;">&nbsp;</div>`;
@@ -1215,7 +1175,7 @@ function exportHTML() {
 
   // Wordmark: driven by height only. Width is auto (natural image ratio).
   // valign=bottom + padding-bottom replaces all spacer math.
-  const wmCellHTML = hasWMForExport ? `<td class="tiq-wm" width="${wmCellWidth}" style="width:${wmCellWidth}px;vertical-align:bottom;padding-bottom:${wmBottomExport}px;padding-${wmSideExport === 'right' ? 'left' : 'right'}:${wmOffsetExport}px;padding-top:0;background-color:${bg};">
+  const wmCellHTML = hasWMForExport ? `<td width="${wmCellWidth}" style="width:${wmCellWidth}px;vertical-align:bottom;padding-bottom:${wmBottomExport}px;padding-${wmSideExport === 'right' ? 'left' : 'right'}:${wmOffsetExport}px;padding-top:0;background-color:${bg};">
       <img src="${wmHostedUrl}" height="${wmHeightExport}" alt="Theater in Quarantine" style="display:block;border:0;height:${wmHeightExport}px;width:auto;" />
     </td>` : '';
 
@@ -1225,14 +1185,14 @@ function exportHTML() {
         <v:fill type="solid" color="${rc}"/>
         <v:textbox inset="0,0,0,0">
         <![endif]-->
-        <div class="tiq-rect" style="background-color:${rc};display:inline-block;padding:${padV}px ${padH}px;font-family:${ff};font-size:${ds}px;color:${dtc};line-height:${dl};letter-spacing:${dls}em;width:${exportW}px;height:${exportH}px;min-height:${exportH}px;max-height:${exportH}px;box-sizing:border-box;overflow:hidden;${borderCSS}">
+        <div style="background-color:${rc};display:inline-block;padding:${padV}px ${padH}px;font-family:${ff};font-size:${ds}px;color:${dtc};line-height:${dl};letter-spacing:${dls}em;width:${exportW}px;height:${exportH}px;box-sizing:border-box;overflow:hidden;${borderCSS}">
 ${bhtml}
         </div>
         <!--[if mso]></v:textbox></v:rect><![endif]-->
       </td>`;
 
   const mirrorCellHTML = hasWMForExport
-    ? `<td class="tiq-mirror" width="${wmCellWidth}" style="width:${wmCellWidth}px;background-color:${bg};padding:0;font-size:0;line-height:0;">&nbsp;</td>`
+    ? `<td width="${wmCellWidth}" style="width:${wmCellWidth}px;background-color:${bg};padding:0;font-size:0;line-height:0;">&nbsp;</td>`
     : '';
 
   const tableRow = hasWMForExport
@@ -1250,9 +1210,9 @@ ${bhtml}
 <meta name="viewport" content="width=${totalExportW + 32}, initial-scale=1, shrink-to-fit=no">
 <!-- TiQ Email — generated by TiQ Email Composer -->
 <style type="text/css">
-  @media only screen and (max-width:600px) {
-    .tiq-wm { display:none !important; }
-    .tiq-mirror { display:none !important; }
+  @media only screen and (max-device-width:${totalExportW + 32}px) {
+    body { -webkit-text-size-adjust:none; }
+    table.tiq-scale { transform-origin:top center; }
   }
 </style>
 </head>
@@ -1260,7 +1220,7 @@ ${bhtml}
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${bg};">
   <tr><td align="center" style="padding:${stagePadExport}px 16px;background-color:${bg};">
 
-    <table class="tiq-wrap" width="${totalExportW}" cellpadding="0" cellspacing="0" border="0" style="width:${totalExportW}px;max-width:${totalExportW}px;">
+    <table width="${totalExportW}" cellpadding="0" cellspacing="0" border="0" style="width:${totalExportW}px;">
       ${tableRow}
     </table>
 
