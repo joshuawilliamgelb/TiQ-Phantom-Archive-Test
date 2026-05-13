@@ -1158,9 +1158,8 @@ function exportHTML() {
     const col = b.color || dtc;
 
     if (b.type === 'text') {
-      // Use div not p — Gmail injects margin:1em 0 on p tags, divs are clean
       const text = (b.content || '').replace(/\n/g,'<br>');
-      return `  <div style="margin:0;padding:0;font-family:${ff};font-size:${b.size||ds}px;font-weight:${b.bold?700:400};font-style:${b.italic?'italic':'normal'};text-align:${b.align||'center'};color:${col};line-height:${lh};letter-spacing:${ls};">${text}</div>`;
+      return `  <p style="margin:0;padding:0;font-family:${ff};font-size:${b.size||ds}px;font-weight:${b.bold?700:400};font-style:${b.italic?'italic':'normal'};text-align:${b.align||'center'};color:${col};line-height:${lh};letter-spacing:${ls};">${text}</p>`;
     }
     if (b.type === 'spacer') return `  <div style="height:${b.h}px;line-height:0;font-size:0;">&nbsp;</div>`;
     if (b.type === 'rule') {
